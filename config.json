@@ -1,0 +1,23 @@
+{
+	"ID": "example",
+	"Name": "Example",
+	"Tasks": [
+		{
+			"ID": "whoami",
+			"Name": "Who am I?",
+			"Command": "whoami"
+		},
+		{
+			"ID": "ls",
+			"Name": "ls -lh $(pwd)",
+			"Command": "ls",
+			"Args": [ "-l", "-h" ]
+		},
+		{
+			"ID": "cpuinfo",
+			"Name": "CPU Info",
+			"Command": "cat",
+			"Args": [ "/proc/cpuinfo" ]
+		}
+	]
+}

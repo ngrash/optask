@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+	<head>
+		<title>{{ .Name }}</title>
+	</head>
+	<body>
+		<div>
+			{{- range .Tasks }}
+			<div>
+				<div>{{ .Name }}</div>
+			</div>
+			{{- else }}
+			<div>No tasks yet. Define tasks in your config file.</div>
+			{{- end }}
+		</div>
+	</body>
+</html>
