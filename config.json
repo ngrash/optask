@@ -18,6 +18,12 @@
 			"Name": "CPU Info",
 			"Command": "cat",
 			"Args": [ "/proc/cpuinfo" ]
+		},
+		{
+			"ID": "sleep-n-echo",
+			"Name": "sleep 2 && echo Hello, web!",
+			"Command": "/bin/sh",
+			"Args": [ "-c", "sleep 2 && echo Hello, web! && sleep 2 && echo Hello, world!" ]
 		}
 	]
 }

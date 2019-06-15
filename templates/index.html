@@ -7,7 +7,11 @@
 		<div>
 			{{- range .Tasks }}
 			<div>
-				<div>{{ .Name }}</div>
+				<div>
+					<a href="/trigger?task={{ .ID }}">
+						{{ .Name }}
+					</a>
+				</div>
 			</div>
 			{{- else }}
 			<div>No tasks yet. Define tasks in your config file.</div>

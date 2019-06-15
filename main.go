@@ -8,6 +8,6 @@ import (
 
 func main() {
 	project := config.ReadConfig("config.json")
-	channel := runner.Start()
-	server.ListenAndServe(":8080", project, channel)
+	runner.Init()
+	server.ListenAndServe(":8080", project)
 }
