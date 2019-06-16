@@ -8,7 +8,6 @@ import (
 	"nicograshoff.de/x/optask/config"
 	"nicograshoff.de/x/optask/runner"
 	"strconv"
-	"time"
 )
 
 func ListenAndServe(addr string, project *config.Project) {
@@ -36,7 +35,7 @@ func ListenAndServe(addr string, project *config.Project) {
 			if task != nil {
 				log.Println("Task: " + task.Name)
 				jobID := runner.Run(task)
-				http.Redirect(w, r, "/listen?job="+strconv.Itoa(jobID), http.StatusSeeOther)
+				http.Redirect(w, r, "/listen?job="+jobID+"&task="+task.ID, http.StatusSeeOther)
 			} else {
 				log.Println("No such task: " + taskID + ". Check your config and request.")
 				w.WriteHeader(http.StatusNotFound)
@@ -69,40 +68,24 @@ func ListenAndServe(addr string, project *config.Project) {
 	})
 
 	http.HandleFunc("/listen", func(w http.ResponseWriter, r *http.Request) {
-		err := r.ParseForm()
-		if err != nil {
-			log.Println(err)
+		r.ParseForm()
+		jobID := r.Form.Get("job")
+		task := r.Form.Get("task")
+
+		line := 0
+		lineParam := r.Form.Get("line")
+		if lineParam != "" {
+			line, _ = strconv.Atoi(lineParam)
 		}
 
-		job := r.Form.Get("job")
-		if job == "" {
-			log.Println("Request with empty job parameter")
+		stdoutLines := runner.GetStdout(task, jobID, line)
+		if stdoutLines != nil {
+			for _, stdoutLine := range stdoutLines {
+				fmt.Fprint(w, stdoutLine)
+			}
 		} else {
-			line := 0
-			lineParam := r.Form.Get("line")
-			if lineParam != "" {
-				line, _ = strconv.Atoi(lineParam)
-			}
-
-			jobID, err := strconv.Atoi(job)
-			if err != nil {
-				log.Println("Cannot convert job ID to integer: " + job)
-			} else {
-				if runner.IsRunning(jobID) {
-					// wait a bit to collect some lines
-					time.Sleep(250 * time.Millisecond)
-					stdoutLines := runner.GetStdout(jobID, line)
-					for _, stdoutLine := range stdoutLines {
-						fmt.Fprint(w, stdoutLine)
-					}
-				} else {
-					log.Println("Job " + job + " not running")
-					w.WriteHeader(http.StatusNotFound)
-				}
-			}
+			w.WriteHeader(http.StatusNotFound)
 		}
-
-		log.Println("Listen")
 	})
 
 	log.Printf("Serving project " + project.Name)
