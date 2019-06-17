@@ -1,8 +1,6 @@
-// Package runner provides means to asynchronously run commands and capture their output.
-package runner
+package exec
 
 import (
-	"io"
 	"log"
 	"os/exec"
 	"sync"
@@ -14,33 +12,6 @@ type Runner struct {
 	orders  jobChan
 	sinkFac SinkFactory
 	runMu   *sync.Mutex
-}
-
-type SinkID interface {
-	String() string
-}
-
-type stringSinkID struct {
-	s string
-}
-
-func (id stringSinkID) String() string {
-	return id.s
-}
-
-func NewSinkID(s string) SinkID {
-	return stringSinkID{s}
-}
-
-type Sink interface {
-	ID() SinkID
-	OpenStdout() io.Writer
-	OpenStderr() io.Writer
-	Close()
-}
-
-type SinkFactory interface {
-	NewSink() Sink
 }
 
 type jobInfo struct {

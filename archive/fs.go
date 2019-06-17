@@ -1,7 +1,6 @@
 package archive
 
 import (
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -11,15 +10,6 @@ import (
 	"strings"
 	"time"
 )
-
-type Identifier struct {
-	path string
-}
-
-type Node struct {
-	id    Identifier
-	index int
-}
 
 type FileSystem struct {
 	root string
@@ -136,28 +126,4 @@ func (fs *FileSystem) ListNodesAfter(time time.Time) []Node {
 
 func (fs *FileSystem) path(node *Node, name string) string {
 	return path.Join(fs.root, node.id.path, strconv.Itoa(node.index), name)
-}
-
-func NewIdentifierNow() Identifier {
-	return NewIdentifier(time.Now())
-}
-
-func NewIdentifier(time time.Time) Identifier {
-	path := fmt.Sprintf("%04d/%02d/%02d", time.Year(), time.Month(), time.Day())
-	return Identifier{path}
-}
-
-func ParseNode(s string) Node {
-	idPath := path.Join(s[0:4], s[4:6], s[6:8])
-	id := Identifier{idPath}
-	index, err := strconv.Atoi(s[8:])
-	if err != nil {
-		log.Panic(err)
-	}
-
-	return Node{id, index}
-}
-
-func (node Node) String() string {
-	return strings.ReplaceAll(node.id.path, "/", "") + strconv.Itoa(node.index)
 }

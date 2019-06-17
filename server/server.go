@@ -8,14 +8,15 @@ import (
 	"net/http"
 	"nicograshoff.de/x/optask/archive"
 	"nicograshoff.de/x/optask/config"
-	"nicograshoff.de/x/optask/runner"
+	"nicograshoff.de/x/optask/exec"
+	"nicograshoff.de/x/optask/exec/archivesink"
 	"strconv"
 )
 
 type RunnerInfo struct {
 	FS      *archive.FileSystem
-	SinkFac *runner.ArchiveSinkFactory
-	Runner  *runner.Runner
+	SinkFac *archivesink.Factory
+	Runner  *exec.Runner
 }
 
 func ListenAndServe(addr string, project *config.Project, runners map[string]*RunnerInfo) {
@@ -86,7 +87,7 @@ func ListenAndServe(addr string, project *config.Project, runners map[string]*Ru
 			line, _ = strconv.Atoi(lineParam)
 		}
 
-		sinkID := runner.NewSinkID(jobID)
+		sinkID := exec.NewSinkID(jobID)
 		sink := runners[task].SinkFac.GetOpenSink(sinkID)
 		if sink != nil {
 			stdout := sink.StdoutLines()[line:]
