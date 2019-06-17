@@ -1,69 +1,77 @@
+// Package exec provides types and methods to asynchronously run commands and
+// capture standard streams (Stdout and Stderr)
 package exec
 
 import (
-	"log"
+	"io"
 	"os/exec"
-	"sync"
 )
 
+// Runner is responsible for asynchronously running commands and writing their
+// output to a OutputSink.
+type Runner struct {
+	jobs jobChan
+}
+
+// OutputSink provides methods to handle standard streams of a command.
+type OutputSink interface {
+	OpenStdout() io.Writer
+	OpenStderr() io.Writer
+	Close()
+}
+
+// Callback is called after the command completed and the sink was closed.
+type Callback func()
+
+// jobChan represents the channel that is used to pass jobInfo objects.
 type jobChan chan *jobInfo
 
-type Runner struct {
-	orders  jobChan
-	sinkFac SinkFactory
-	runMu   *sync.Mutex
-}
-
+// jobInfo represents a scheduled job.
 type jobInfo struct {
-	sink Sink
-	cmd  *exec.Cmd
+	sink     OutputSink
+	cmd      *exec.Cmd
+	callback Callback
 }
 
-// NewRunner initializes a new Runner and starts the dispatch loop.
-func NewRunner(sinkFac SinkFactory) *Runner {
+// NewRunner creates a new Runner and starts it's dispatch loop.
+func NewRunner() *Runner {
 	r := new(Runner)
-	r.orders = make(jobChan)
-	r.sinkFac = sinkFac
-	r.runMu = new(sync.Mutex)
-
+	r.jobs = make(jobChan)
 	go r.dispatchAndLoop()
-
 	return r
 }
 
-func (r *Runner) Run(name string, arg ...string) SinkID {
-	r.runMu.Lock()
-	defer r.runMu.Unlock()
-
-	job := new(jobInfo)
-	job.sink = r.sinkFac.NewSink()
-	job.cmd = exec.Command(name, arg...)
-
-	r.orders <- job
-
-	return job.sink.ID()
+// Run dispatches a command with a given name and args writing standard
+// streams to the sink.
+func (r *Runner) Run(name string, args []string, sink OutputSink, callback Callback) {
+	cmd := exec.Command(name, args...)
+	r.jobs <- &jobInfo{sink, cmd, callback}
 }
 
-// dispatchAndLoop starts a goroute for each job received through the jobChan.
+// dispatchAndLoop reads jobInfo objects from the Runner's jobChan and run
+// them asynchronously, then repeats.
 func (r *Runner) dispatchAndLoop() {
 	for {
-		job := <-r.orders
+		job := <-r.jobs
 		go r.run(job)
 	}
 }
 
-// run is called in a goroutine by dispatchAndLoop for each job.
+// run connects the standard streams to the sink and runs the command.
 func (r *Runner) run(job *jobInfo) {
 	defer job.sink.Close()
+	defer func() {
+		go job.callback()
+	}()
 
 	job.cmd.Stdout = job.sink.OpenStdout()
 	job.cmd.Stderr = job.sink.OpenStderr()
 
 	if err := job.cmd.Start(); err != nil {
-		log.Panic(err)
+		panic(err)
 	}
 
 	if err := job.cmd.Wait(); err != nil {
-		log.Panic(err)
+		panic(err)
 	}
 }

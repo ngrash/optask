@@ -10,23 +10,38 @@ import (
 	"nicograshoff.de/x/optask/config"
 	"nicograshoff.de/x/optask/exec"
 	"nicograshoff.de/x/optask/exec/archivesink"
-	"strconv"
 )
 
-type RunnerInfo struct {
-	FS      *archive.FileSystem
-	SinkFac *archivesink.Factory
-	Runner  *exec.Runner
+type Server struct {
+	proj     *config.Project
+	runner   *exec.Runner
+	archives map[string]*archive.FileSystem
+	sinks    map[string]map[string]*archivesink.Sink
+	addr     string
 }
 
-func ListenAndServe(addr string, project *config.Project, runners map[string]*RunnerInfo) {
+func NewServer(addr string, proj *config.Project) *Server {
+	s := new(Server)
+	s.addr = addr
+	s.proj = proj
+	s.runner = exec.NewRunner()
+	s.archives = make(map[string]*archive.FileSystem)
+	s.sinks = make(map[string]map[string]*archivesink.Sink)
+	for _, task := range proj.Tasks {
+		s.archives[task.ID] = archive.NewFileSystem("logs/" + task.ID)
+		s.sinks[task.ID] = make(map[string]*archivesink.Sink)
+	}
+	return s
+}
+
+func (s *Server) ListenAndServe() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		template, err := template.ParseFiles("templates/index.html")
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		template.Execute(w, project)
+		template.Execute(w, s.proj)
 	})
 
 	http.HandleFunc("/trigger", func(w http.ResponseWriter, r *http.Request) {
@@ -40,11 +55,11 @@ func ListenAndServe(addr string, project *config.Project, runners map[string]*Ru
 			log.Println("Request with empty task parameter")
 			w.WriteHeader(http.StatusBadRequest)
 		} else {
-			task := findTask(taskID, project)
+			task := findTask(taskID, s.proj)
 			if task != nil {
 				log.Println("Task: " + task.Name)
-				sinkID := runners[task.ID].Runner.Run(task.Command, task.Args...)
-				http.Redirect(w, r, "/listen?job="+sinkID.String()+"&task="+task.ID, http.StatusSeeOther)
+				sinkID := s.run(task)
+				http.Redirect(w, r, "/output?job="+sinkID+"&task="+task.ID, http.StatusSeeOther)
 			} else {
 				log.Println("No such task: " + taskID + ". Check your config and request.")
 				w.WriteHeader(http.StatusNotFound)
@@ -52,61 +67,46 @@ func ListenAndServe(addr string, project *config.Project, runners map[string]*Ru
 		}
 	})
 
-	http.HandleFunc("/job", func(w http.ResponseWriter, r *http.Request) {
-		err := r.ParseForm()
-		if err != nil {
-			log.Println(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		jobIDstr := r.Form.Get("job")
-		jobID, err := strconv.Atoi(jobIDstr)
-		if err != nil {
-			log.Println(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		template, err := template.ParseFiles("templates/job.html")
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		template.Execute(w, jobID)
-	})
-
-	http.HandleFunc("/listen", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/output", func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
-		jobID := r.Form.Get("job")
+		sinkID := r.Form.Get("job")
 		task := r.Form.Get("task")
 
-		line := 0
-		lineParam := r.Form.Get("line")
-		if lineParam != "" {
-			line, _ = strconv.Atoi(lineParam)
-		}
-
-		sinkID := exec.NewSinkID(jobID)
-		sink := runners[task].SinkFac.GetOpenSink(sinkID)
+		fs := s.archives[task]
+		sink := s.sinks[task][sinkID]
 		if sink != nil {
-			stdout := sink.StdoutLines()[line:]
+			log.Println("Serving from memory")
+			stdout := sink.StdoutLines()
 			for _, line := range stdout {
-				fmt.Fprintln(w, line)
+				fmt.Fprint(w, line)
 			}
 		} else {
-			node := archive.ParseNode(jobID)
-			file, err := runners[task].FS.Open(&node, "stdout.txt")
+			log.Println("Serving from filesystem")
+			node := fs.Node(sinkID)
+			file, err := fs.Open(node, "stdout.txt")
 			if err != nil {
 				log.Panic(err)
 			}
-			fileR := bufio.NewReader(file)
-			fileR.WriteTo(w)
+
+			bufio.NewReader(file).WriteTo(w)
 		}
 	})
 
-	log.Printf("Serving project " + project.Name)
-	log.Fatal(http.ListenAndServe(addr, nil))
+	log.Printf("Serving project " + s.proj.Name)
+	log.Fatal(http.ListenAndServe(s.addr, nil))
+}
+
+func (s *Server) run(task *config.Task) string {
+	fs := s.archives[task.ID]
+	sink := archivesink.NewSink(fs)
+	sinkID := sink.NodeID()
+	s.sinks[task.ID][sinkID] = sink
+
+	s.runner.Run(task.Command, task.Args, sink, func() {
+		delete(s.sinks[task.ID], sinkID)
+	})
+
+	return sinkID
 }
 
 func findTask(id string, project *config.Project) *config.Task {

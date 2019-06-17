@@ -1,59 +1,103 @@
 package archive
 
 import (
+	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 type FileSystem struct {
 	root string
+	mu   *sync.Mutex
+}
+
+type Node struct {
+	path string
 }
 
 func NewFileSystem(root string) *FileSystem {
 	err := os.MkdirAll(root, os.ModePerm|os.ModeDir)
 	if err != nil {
-		log.Panic(err)
+		panic(err)
 	}
-	return &FileSystem{root}
+	return &FileSystem{root, new(sync.Mutex)}
 }
 
-func (fs *FileSystem) Create(node *Node, name string) (*os.File, error) {
-	return os.Create(fs.path(node, name))
+func (fs *FileSystem) NodeID(n *Node) string {
+	return strings.ReplaceAll(n.path[len(fs.root):], "/", "")
 }
 
-func (fs *FileSystem) Open(node *Node, name string) (*os.File, error) {
-	return os.Open(fs.path(node, name))
-}
-
-func (fs *FileSystem) CreateNode(id Identifier) *Node {
-	idPath := path.Join(fs.root, id.path)
-	os.MkdirAll(idPath, os.ModePerm|os.ModeDir)
-
-	nodes := fs.ListNodes(id)
-	nextIndex := len(nodes)
-	newNode := &Node{id, nextIndex}
-	newNodePath := path.Join(idPath, strconv.Itoa(newNode.index))
-	os.MkdirAll(newNodePath, os.ModePerm|os.ModeDir)
-	return newNode
-}
-
-func (fs *FileSystem) ListNodes(id Identifier) []Node {
-	idPath := path.Join(fs.root, id.path)
-	files, err := ioutil.ReadDir(idPath)
+func (fs *FileSystem) Node(id string) *Node {
+	t, err := time.Parse("20060102", id[0:8])
 	if err != nil {
-		log.Panic(err)
+		panic(err)
 	}
-	nodes := make([]Node, len(files))
-	for index, _ := range files {
-		nodes[index] = Node{id, index}
+	index, err := strconv.Atoi(id[8:])
+
+	path := fs.nodePath(t, index)
+
+	return &Node{path}
+}
+
+func (fs *FileSystem) Create(n *Node, name string) (*os.File, error) {
+	return os.Create(path.Join(n.path, name))
+}
+
+func (fs *FileSystem) Open(n *Node, name string) (*os.File, error) {
+	return os.Open(path.Join(n.path, name))
+}
+
+func (fs *FileSystem) nodesPath(t time.Time) string {
+	p := fmt.Sprintf("%04d/%02d/%02d", t.Year(), t.Month(), t.Day())
+	return path.Join(fs.root, p)
+}
+
+func (fs *FileSystem) nodePath(t time.Time, i int) string {
+	nodesPath := fs.nodesPath(t)
+	node := fmt.Sprintf("%d", i)
+	return path.Join(nodesPath, node)
+}
+
+func (fs *FileSystem) CreateNodeNow() *Node {
+	return fs.CreateNode(time.Now())
+}
+
+func (fs *FileSystem) CreateNode(t time.Time) *Node {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	nodes := fs.ListNodes(t)
+	index := len(nodes)
+	path := fs.nodePath(t, index)
+	os.MkdirAll(path, os.ModePerm|os.ModeDir)
+
+	return &Node{path}
+}
+
+func (fs *FileSystem) ListNodes(time time.Time) []Node {
+	nodesPath := fs.nodesPath(time)
+	_, err := os.Stat(nodesPath)
+	if err == nil {
+		files, err := ioutil.ReadDir(nodesPath)
+		if err != nil {
+			panic(err)
+		}
+		nodes := make([]Node, len(files))
+		for index, file := range files {
+			nodes[index] = Node{path.Join(nodesPath, file.Name())}
+		}
+		return nodes
+	} else if os.IsNotExist(err) {
+		return make([]Node, 0)
+	} else {
+		panic(err)
 	}
-	return nodes
 }
 
 func (fs *FileSystem) ListNodesAfter(time time.Time) []Node {
@@ -67,7 +111,7 @@ func (fs *FileSystem) ListNodesAfter(time time.Time) []Node {
 		if len(parts) >= 2 {
 			itemYear, err := strconv.Atoi(parts[1])
 			if err != nil {
-				log.Panic(err)
+				panic(err)
 			}
 
 			yearLimit := time.Year()
@@ -81,7 +125,7 @@ func (fs *FileSystem) ListNodesAfter(time time.Time) []Node {
 		if checkNext && len(parts) >= 3 {
 			itemMonth, err := strconv.Atoi(parts[2])
 			if err != nil {
-				log.Panic(err)
+				panic(err)
 			}
 
 			monthLimit := int(time.Month())
@@ -95,7 +139,7 @@ func (fs *FileSystem) ListNodesAfter(time time.Time) []Node {
 		if checkNext && len(parts) >= 4 {
 			day, err := strconv.Atoi(parts[3])
 			if err != nil {
-				log.Panic(err)
+				panic(err)
 			}
 			if day < time.Day() {
 				return filepath.SkipDir
@@ -103,13 +147,12 @@ func (fs *FileSystem) ListNodesAfter(time time.Time) []Node {
 		}
 
 		if len(parts) >= 5 {
-			index, err := strconv.Atoi(parts[4])
+			_, err := strconv.Atoi(parts[4])
 			if err != nil {
-				log.Panic(err)
+				panic(err)
 			}
 
-			id := Identifier{path.Join(parts[1:4]...)}
-			nodes = append(nodes, Node{id, index})
+			nodes = append(nodes, Node{filePath})
 
 			// we are not interested in the node's content
 			return filepath.SkipDir
@@ -119,11 +162,7 @@ func (fs *FileSystem) ListNodesAfter(time time.Time) []Node {
 		return nil
 	})
 	if err != nil {
-		log.Panic(err)
+		panic(err)
 	}
 	return nodes
-}
-
-func (fs *FileSystem) path(node *Node, name string) string {
-	return path.Join(fs.root, node.id.path, strconv.Itoa(node.index), name)
 }
