@@ -1,16 +1,24 @@
 package server
 
 import (
+	"bufio"
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
+	"nicograshoff.de/x/optask/archive"
 	"nicograshoff.de/x/optask/config"
 	"nicograshoff.de/x/optask/runner"
 	"strconv"
 )
 
-func ListenAndServe(addr string, project *config.Project) {
+type RunnerInfo struct {
+	FS      *archive.FileSystem
+	SinkFac *runner.ArchiveSinkFactory
+	Runner  *runner.Runner
+}
+
+func ListenAndServe(addr string, project *config.Project, runners map[string]*RunnerInfo) {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		template, err := template.ParseFiles("templates/index.html")
 		if err != nil {
@@ -34,8 +42,8 @@ func ListenAndServe(addr string, project *config.Project) {
 			task := findTask(taskID, project)
 			if task != nil {
 				log.Println("Task: " + task.Name)
-				jobID := runner.Run(task)
-				http.Redirect(w, r, "/listen?job="+jobID+"&task="+task.ID, http.StatusSeeOther)
+				sinkID := runners[task.ID].Runner.Run(task.Command, task.Args...)
+				http.Redirect(w, r, "/listen?job="+sinkID.String()+"&task="+task.ID, http.StatusSeeOther)
 			} else {
 				log.Println("No such task: " + taskID + ". Check your config and request.")
 				w.WriteHeader(http.StatusNotFound)
@@ -78,13 +86,21 @@ func ListenAndServe(addr string, project *config.Project) {
 			line, _ = strconv.Atoi(lineParam)
 		}
 
-		stdoutLines := runner.GetStdout(task, jobID, line)
-		if stdoutLines != nil {
-			for _, stdoutLine := range stdoutLines {
-				fmt.Fprint(w, stdoutLine)
+		sinkID := runner.NewSinkID(jobID)
+		sink := runners[task].SinkFac.GetOpenSink(sinkID)
+		if sink != nil {
+			stdout := sink.StdoutLines()[line:]
+			for _, line := range stdout {
+				fmt.Fprintln(w, line)
 			}
 		} else {
-			w.WriteHeader(http.StatusNotFound)
+			node := archive.ParseNode(jobID)
+			file, err := runners[task].FS.Open(&node, "stdout.txt")
+			if err != nil {
+				log.Panic(err)
+			}
+			fileR := bufio.NewReader(file)
+			fileR.WriteTo(w)
 		}
 	})
 

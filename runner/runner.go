@@ -1,145 +1,98 @@
+// Package runner provides means to asynchronously run commands and capture their output.
 package runner
 
 import (
-	"bufio"
 	"io"
 	"log"
-	"nicograshoff.de/x/optask/archive"
-	"nicograshoff.de/x/optask/config"
 	"os/exec"
 	"sync"
-	"time"
 )
 
-type job struct {
-	task   *config.Task
-	id     string
-	stdout []string
-	node   *archive.Node
+type jobChan chan *jobInfo
+
+type Runner struct {
+	orders  jobChan
+	sinkFac SinkFactory
+	runMu   *sync.Mutex
 }
 
-var jobs map[string]*job
-var jobsMutex *sync.Mutex
-var runMutex *sync.Mutex
-var jobChannel chan *job
-var logs map[string]*archive.FileSystem
-
-func Init(l map[string]*archive.FileSystem) {
-	logs = l
-	jobs = make(map[string]*job)
-	jobsMutex = &sync.Mutex{}
-	jobChannel = make(chan *job)
-	runMutex = &sync.Mutex{}
-	go dispatchLoop()
+type SinkID interface {
+	String() string
 }
 
-func Run(task *config.Task) string {
-	id := archive.NewIdentifierNow()
-
-	runMutex.Lock()
-	defer runMutex.Unlock()
-
-	fs := logs[task.ID]
-	if fs == nil {
-		log.Panic("No log fs")
-	}
-	node := fs.CreateNode(id)
-	jobID := node.String()
-	job := &job{task, jobID, make([]string, 100), node}
-
-	jobsMutex.Lock()
-	jobs[jobID] = job
-	jobsMutex.Unlock()
-
-	jobChannel <- job
-
-	return jobID
+type stringSinkID struct {
+	s string
 }
 
-func GetStdout(task string, jobID string, line int) []string {
-	jobsMutex.Lock()
-	job := jobs[jobID]
-	jobsMutex.Unlock()
-
-	var stdout []string
-	if job == nil {
-		node := archive.ParseNode(jobID)
-		file, err := logs[task].Open(&node, "stdout.txt")
-		if err != nil {
-			log.Panic(err)
-		}
-
-		stdout = make([]string, 100)
-		r := bufio.NewReader(file)
-		for {
-			line, err := r.ReadString('\n')
-			stdout = append(stdout, line)
-			if err == io.EOF {
-				break
-			}
-		}
-	} else {
-		// the job is still running so we wait a bit to collect some lines
-		time.Sleep(250 * time.Millisecond)
-
-		stdout = job.stdout
-	}
-	return stdout[line:]
+func (id stringSinkID) String() string {
+	return id.s
 }
 
-func dispatchLoop() {
+func NewSinkID(s string) SinkID {
+	return stringSinkID{s}
+}
+
+type Sink interface {
+	ID() SinkID
+	OpenStdout() io.Writer
+	OpenStderr() io.Writer
+	Close()
+}
+
+type SinkFactory interface {
+	NewSink() Sink
+}
+
+type jobInfo struct {
+	sink Sink
+	cmd  *exec.Cmd
+}
+
+// NewRunner initializes a new Runner and starts the dispatch loop.
+func NewRunner(sinkFac SinkFactory) *Runner {
+	r := new(Runner)
+	r.orders = make(jobChan)
+	r.sinkFac = sinkFac
+	r.runMu = new(sync.Mutex)
+
+	go r.dispatchAndLoop()
+
+	return r
+}
+
+func (r *Runner) Run(name string, arg ...string) SinkID {
+	r.runMu.Lock()
+	defer r.runMu.Unlock()
+
+	job := new(jobInfo)
+	job.sink = r.sinkFac.NewSink()
+	job.cmd = exec.Command(name, arg...)
+
+	r.orders <- job
+
+	return job.sink.ID()
+}
+
+// dispatchAndLoop starts a goroute for each job received through the jobChan.
+func (r *Runner) dispatchAndLoop() {
 	for {
-		job := <-jobChannel
-		go run(job)
+		job := <-r.orders
+		go r.run(job)
 	}
 }
 
-func run(job *job) {
-	defer func() {
-		// Wait a second in case someone is still interested in reading stdin
-		// We would have to read stdin from the file system otherwise.
-		time.Sleep(1 * time.Second)
+// run is called in a goroutine by dispatchAndLoop for each job.
+func (r *Runner) run(job *jobInfo) {
+	defer job.sink.Close()
 
-		fs := logs[job.task.ID]
-		file, err := fs.Create(job.node, "stdout.txt")
-		if err != nil {
-			log.Println(err)
-		}
-		defer file.Close()
+	job.cmd.Stdout = job.sink.OpenStdout()
+	job.cmd.Stderr = job.sink.OpenStderr()
 
-		w := bufio.NewWriter(file)
-		for _, line := range job.stdout {
-			w.WriteString(line)
-		}
-		w.Flush()
-
-		jobsMutex.Lock()
-		delete(jobs, job.id)
-		jobsMutex.Unlock()
-	}()
-
-	task := job.task
-	cmd := exec.Command(task.Command, task.Args...)
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		log.Fatal(err)
+	if err := job.cmd.Start(); err != nil {
+		log.Panic(err)
 	}
 
-	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
-	}
-
-	reader := bufio.NewReader(stdout)
-	for {
-		line, err := reader.ReadString('\n')
-		job.stdout = append(job.stdout, line)
-		if err == io.EOF {
-			break
-		}
-	}
-
-	if err := cmd.Wait(); err != nil {
-		log.Fatal(err)
+	if err := job.cmd.Wait(); err != nil {
+		log.Panic(err)
 	}
 }

@@ -8,12 +8,15 @@ import (
 )
 
 func main() {
-	logs := make(map[string]*archive.FileSystem)
+	runners := make(map[string]*server.RunnerInfo)
 	project := config.ReadConfig("config.json")
 	for _, task := range project.Tasks {
-		logs[task.ID] = archive.NewFileSystem("logs/" + task.ID)
+		fs := archive.NewFileSystem("logs/" + task.ID)
+		sinkFac := runner.NewArchiveSinkFactory(fs)
+		runner := runner.NewRunner(sinkFac)
+
+		runners[task.ID] = &server.RunnerInfo{fs, sinkFac, runner}
 	}
 
-	runner.Init(logs)
-	server.ListenAndServe(":8080", project)
+	server.ListenAndServe(":8080", project, runners)
 }
