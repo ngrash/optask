@@ -113,7 +113,7 @@ func (s *ArchiveSink) Close() {
 func NewSliceWriter() *SliceWriter {
 	sw := new(SliceWriter)
 	sw.lines = make([]string, 0)
-	sw.buf = bytes.NewBuffer(make([]byte, 80))
+	sw.buf = new(bytes.Buffer)
 	return sw
 }
 
