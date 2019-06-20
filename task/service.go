@@ -81,6 +81,10 @@ func (sv *Service) Run(taskID TaskID) (RunID, error) {
 	return runID, nil
 }
 
+func (sv *Service) IsRunning(taskID TaskID, runID RunID) bool {
+	return sv.sinks[taskID] != nil && sv.sinks[taskID][runID] != nil
+}
+
 func (sv *Service) OpenStdout(taskID TaskID, runID RunID) (StdStream, error) {
 	stream, err := sv.openStream(taskID, runID, "stdout")
 	return stream, err

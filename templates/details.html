@@ -11,23 +11,34 @@
 				</li>
 			</ul>
 		</nav>
-		<h1>{{ .Title }}</h1>
-		<h2>Details</h2>
-		<div>
-			{{ .CmdLine }}
-		</div>
+		<h1>
+			{{- if .IsRunning }}
+				&#8987;
+			{{- else }}
+				&#9788;
+			{{- end }}
+			{{ .Title }}
+		</h1>
+		<kbd>$ {{ .CmdLine }}</kbd>
 		<h2>Stderr</h2>
 		<div class="std-stream stderr">
-			{{- range .Stderr }}
-				{{ . }}
+			{{- if .Stderr }}
+			<pre>
+{{- range .Stderr }}
+{{ . }}
+{{- end }}
+			</pre>
 			{{- else }}
 				&#128077; No stderr. 
 			{{- end }}
-		</div>
 		<h2>Stdout</h2>
 		<div class="std-stream stdout">
+			{{- if .Stdout }}
+			<pre>
 			{{- range .Stdout }}
-				{{ . }}
+{{ . }}
+			{{- end }}
+			</pre>
 			{{- else }}
 				No stdout.
 			{{- end }}

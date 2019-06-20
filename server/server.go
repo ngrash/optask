@@ -68,14 +68,16 @@ func (srv *Server) ListenAndServe() {
 		task, err := srv.tasks.Task(taskID)
 
 		type viewModel struct {
-			Title   string
-			CmdLine string
-			Stdout  []string
-			Stderr  []string
+			Title     string
+			CmdLine   string
+			Stdout    []string
+			Stderr    []string
+			IsRunning bool
 		}
 
 		cmdLine := fmt.Sprintf("%v %v", task.Command, strings.Join(task.Args, " "))
-		vm := &viewModel{task.Name, cmdLine, stream.Lines(), make([]string, 0)}
+		isRunning := srv.tasks.IsRunning(taskID, runID)
+		vm := &viewModel{task.Name, cmdLine, stream.Lines(), make([]string, 0), isRunning}
 		template.Execute(w, vm)
 	})
 
@@ -90,6 +92,12 @@ func (srv *Server) ListenAndServe() {
 			panic(err)
 		}
 		defer stdout.Close()
+
+		if srv.tasks.IsRunning(taskID, runID) {
+			w.Header().Set("X-Optask-Running", "1")
+		} else {
+			w.Header().Set("X-Optask-Running", "0")
+		}
 
 		stdout.WriteTo(w)
 	})
