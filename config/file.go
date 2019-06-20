@@ -9,6 +9,7 @@ import (
 type Project struct {
 	ID    string
 	Name  string
+	Logs  string
 	Tasks []Task
 }
 

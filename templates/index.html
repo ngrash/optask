@@ -4,14 +4,17 @@
 		<title>{{ .Name }}</title>
 	</head>
 	<body>
-		<div>
+		<div class="task-list">
 			{{- range .Tasks }}
-			<div>
-				<div>
-					<a href="/trigger?task={{ .ID }}">
-						{{ .Name }}
-					</a>
+			<div class="task">
+				<div class="name">
+					{{ .Name }}
 				</div>
+
+				<form action="run" method="POST">
+					<input type="hidden" name="task_id" value="{{ .ID }}" />
+					<input type="submit" value="Run" />
+				</form>
 			</div>
 			{{- else }}
 			<div>No tasks yet. Define tasks in your config file.</div>

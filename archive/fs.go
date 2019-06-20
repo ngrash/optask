@@ -80,6 +80,75 @@ func (fs *FileSystem) CreateNode(t time.Time) *Node {
 	return &Node{path}
 }
 
+func (fs *FileSystem) LatestNode() *Node {
+	// Relies on the sorted nature of ioutil.ReadDir for finding the
+	// latest year, month, and day.
+	years, err := ioutil.ReadDir(fs.root)
+	if err != nil {
+		panic(err)
+	}
+
+	// This is the only time we need to check if a directory is empty.
+	// Directories are only created when nodes are created, so if there
+	// is a year there is also a month, a day and an index.
+	if len(years) <= 0 {
+		return nil
+	}
+
+	// Relies on file system sorting. Breaks if used before
+	// and after 9999 A.D.
+	year := years[len(years)-1].Name()
+	yearPath := path.Join(fs.root, year)
+
+	// Relies on file system sorting. Not expected to break as months
+	// are used with a leading zero (e.g. "02") and will not exceed 12.
+	months, err := ioutil.ReadDir(yearPath)
+	if err != nil {
+		panic(err)
+	}
+	month := months[len(months)-1].Name()
+	monthPath := path.Join(yearPath, month)
+
+	// Relies on file system sorting. Again this is not a problem as days
+	// are used with a leading zero (e.g. "08") and will not exceed 31.
+	days, err := ioutil.ReadDir(monthPath)
+	if err != nil {
+		panic(err)
+	}
+	day := days[len(days)-1].Name()
+	dayPath := path.Join(monthPath, day)
+
+	// Indices are a special because they are not zero-extended. That is
+	// because zero-extending them would not solve the problem but only
+	// delay it. Maybe it is worth the effort one day. For now we can rely
+	// on file system sorting for up to 10 indices ("0" to "9".) After that
+	// we have to check their lenth and compare length (see code below.)
+	indices, err := ioutil.ReadDir(dayPath)
+	if err != nil {
+		panic(err)
+	}
+	if len(indices) <= 10 {
+		index := indices[len(indices)-1].Name()
+		return &Node{path.Join(dayPath, index)}
+	} else {
+		maxIndex := ""
+		for _, indexPath := range indices {
+			index := indexPath.Name()
+			// longer string -> bigger number
+			if len(index) > len(maxIndex) {
+				maxIndex = index
+			} else {
+				// same length -> compare
+				if len(index) == len(maxIndex) && index > maxIndex {
+					maxIndex = index
+				}
+			}
+		}
+
+		return &Node{path.Join(dayPath, maxIndex)}
+	}
+}
+
 func (fs *FileSystem) ListNodes(time time.Time) []Node {
 	nodesPath := fs.nodesPath(time)
 	_, err := os.Stat(nodesPath)

@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+	<head>
+		<title>{{ .Title }}</title>
+	</head>
+	<body>
+		<nav>
+			<ul>
+				<li>
+					<a href="..">&#8962; Home</a>
+				</li>
+			</ul>
+		</nav>
+		<h1>{{ .Title }}</h1>
+		<h2>Details</h2>
+		<div>
+			{{ .CmdLine }}
+		</div>
+		<h2>Stderr</h2>
+		<div class="std-stream stderr">
+			{{- range .Stderr }}
+				{{ . }}
+			{{- else }}
+				&#128077; No stderr. 
+			{{- end }}
+		</div>
+		<h2>Stdout</h2>
+		<div class="std-stream stdout">
+			{{- range .Stdout }}
+				{{ . }}
+			{{- else }}
+				No stdout.
+			{{- end }}
+		</div>
+	</body>
+</html>
