@@ -4,21 +4,35 @@
 		<title>{{ .Name }}</title>
 	</head>
 	<body>
-		<div class="task-list">
+		<h1>{{ .Name }}</h1>
+		<h2>Tasks</h2>
+		{{ if .Tasks }}
+		<table>
+			<thead>
+				<tr>
+					<th>Task</th>
+					<th>Action</th>
+				</tr>
+			</thead>
+			<tbody>
 			{{- range .Tasks }}
-			<div class="task">
-				<div class="name">
-					{{ .Name }}
-				</div>
-
-				<form action="run" method="POST">
-					<input type="hidden" name="task_id" value="{{ .ID }}" />
-					<input type="submit" value="Run" />
-				</form>
+				<tr>
+					<td>{{ .Name }}</td>
+					<td>
+						<form action="run" method="POST">
+							<input type="hidden" name="task_id" value="{{ .ID }}" />
+							<input type="submit" value="Run" />
+						</form>
+					</td>
+				</tr>
 			</div>
-			{{- else }}
-			<div>No tasks yet. Define tasks in your config file.</div>
-			{{- end }}
+			{{ end }}
+			</tbody>
+		</table>
+		{{ else }}
+		<div>
+			No tasks yet. Define some in your config file.
 		</div>
+		{{ end }}
 	</body>
 </html>
