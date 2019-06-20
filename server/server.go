@@ -94,9 +94,9 @@ func (srv *Server) ListenAndServe() {
 		defer stdout.Close()
 
 		if srv.tasks.IsRunning(taskID, runID) {
-			w.Header().Set("X-Optask-Running", "1")
+			w.Header().Set("Optask-Running", "1")
 		} else {
-			w.Header().Set("X-Optask-Running", "0")
+			w.Header().Set("Optask-Running", "0")
 		}
 
 		stdout.WriteTo(w)
