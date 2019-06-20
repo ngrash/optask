@@ -24,9 +24,9 @@
 		<div class="std-stream stderr">
 			{{- if .Stderr }}
 			<pre>
-{{- range .Stderr }}
+			{{- range .Stderr }}
 {{ . }}
-{{- end }}
+			{{- end }}
 			</pre>
 			{{- else }}
 				&#128077; No stderr. 
