@@ -36,19 +36,20 @@ func (srv *Server) ListenAndServe() {
 
 	http.HandleFunc("/run", func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
-
 		taskID := r.Form.Get("task_id")
-		if taskID == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
 		runID, err := srv.tasks.Run(task.TaskID(taskID))
 		if err != nil {
 			log.Panic(err)
 		}
 
 		http.Redirect(w, r, "/details?task_id="+taskID+"&run_id="+string(runID), http.StatusSeeOther)
+	})
+
+	http.HandleFunc("/latest", func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		taskID := task.TaskID(r.Form.Get("task_id"))
+		runID := srv.tasks.LatestRun(taskID)
+		http.Redirect(w, r, "/details?task_id="+string(taskID)+"&run_id="+string(runID), http.StatusSeeOther)
 	})
 
 	http.HandleFunc("/details", func(w http.ResponseWriter, r *http.Request) {

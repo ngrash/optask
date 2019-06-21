@@ -81,6 +81,12 @@ func (sv *Service) Run(taskID TaskID) (RunID, error) {
 	return runID, nil
 }
 
+func (sv *Service) LatestRun(taskID TaskID) RunID {
+	node := sv.fs[taskID].LatestNode()
+	nodeID := sv.fs[taskID].NodeID(node)
+	return RunID(nodeID)
+}
+
 func (sv *Service) IsRunning(taskID TaskID, runID RunID) bool {
 	return sv.sinks[taskID] != nil && sv.sinks[taskID][runID] != nil
 }
