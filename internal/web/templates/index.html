@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+	<head>
+		<title>{{ .Name }}</title>
+	</head>
+	<body>
+		<nav>
+			&#8962; Home
+			<hr>
+		</nav>
+		<h1>{{ .Name }}</h1>
+		<h2>Tasks</h2>
+		{{ if .Tasks }}
+		<table>
+			<thead>
+				<tr>
+					<th>Task</th>
+					<th>Latest</th>
+					<th>Run</th>
+				</tr>
+			</thead>
+			<tbody>
+			{{- range .Tasks }}
+				<tr>
+					<td>{{ .Name }}</td>
+					<td><a href="latest?task_id={{ .ID }}">latest</a></td>
+					<td>
+						<form action="run" method="POST">
+							<input type="hidden" name="task_id" value="{{ .ID }}" />
+							<input type="submit" value="Run" />
+						</form>
+					</td>
+				</tr>
+			{{ end }}
+			</tbody>
+		</table>
+		{{ else }}
+		<div>
+			No tasks yet. Define some in your config file.
+		</div>
+		{{ end }}
+	</body>
+</html>

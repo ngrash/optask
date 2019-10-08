@@ -1,22 +1,23 @@
-package server
+package web
 
 import (
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
-	"nicograshoff.de/x/optask/config"
-	"nicograshoff.de/x/optask/task"
 	"strings"
+
+	"nicograshoff.de/x/optask/internal/config"
+	"nicograshoff.de/x/optask/internal/runner"
 )
 
 type Server struct {
 	addr  string
 	proj  *config.Project
-	tasks *task.Service
+	tasks *runner.Service
 }
 
-func NewServer(addr string, proj *config.Project, tasks *task.Service) *Server {
+func NewServer(addr string, proj *config.Project, tasks *runner.Service) *Server {
 	s := new(Server)
 	s.addr = addr
 	s.proj = proj
@@ -26,7 +27,7 @@ func NewServer(addr string, proj *config.Project, tasks *task.Service) *Server {
 
 func (srv *Server) ListenAndServe() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		template, err := template.ParseFiles("templates/index.html")
+		template, err := template.ParseFiles("web/templates/index.html")
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -37,7 +38,7 @@ func (srv *Server) ListenAndServe() {
 	http.HandleFunc("/run", func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		taskID := r.Form.Get("task_id")
-		runID, err := srv.tasks.Run(task.TaskID(taskID))
+		runID, err := srv.tasks.Run(runner.TaskID(taskID))
 		if err != nil {
 			log.Panic(err)
 		}
@@ -47,7 +48,7 @@ func (srv *Server) ListenAndServe() {
 
 	http.HandleFunc("/latest", func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
-		taskID := task.TaskID(r.Form.Get("task_id"))
+		taskID := runner.TaskID(r.Form.Get("task_id"))
 		runID := srv.tasks.LatestRun(taskID)
 		http.Redirect(w, r, "/details?task_id="+string(taskID)+"&run_id="+string(runID), http.StatusSeeOther)
 	})
@@ -55,10 +56,10 @@ func (srv *Server) ListenAndServe() {
 	http.HandleFunc("/details", func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 
-		taskID := task.TaskID(r.Form.Get("task_id"))
-		runID := task.RunID(r.Form.Get("run_id"))
+		taskID := runner.TaskID(r.Form.Get("task_id"))
+		runID := runner.RunID(r.Form.Get("run_id"))
 
-		template, err := template.ParseFiles("templates/details.html")
+		template, err := template.ParseFiles("web/templates/details.html")
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -85,8 +86,8 @@ func (srv *Server) ListenAndServe() {
 	http.HandleFunc("/output", func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 
-		taskID := task.TaskID(r.Form.Get("task_id"))
-		runID := task.RunID(r.Form.Get("run_id"))
+		taskID := runner.TaskID(r.Form.Get("task_id"))
+		runID := runner.RunID(r.Form.Get("run_id"))
 
 		stdout, err := srv.tasks.OpenStdout(taskID, runID)
 		if err != nil {

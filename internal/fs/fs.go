@@ -1,4 +1,4 @@
-package archive
+package fs
 
 import (
 	"fmt"

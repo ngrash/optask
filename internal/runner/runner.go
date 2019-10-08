@@ -1,41 +1,31 @@
-// Package exec provides types and methods to asynchronously run commands and
-// capture standard streams (Stdout and Stderr)
-package exec
+package runner
 
 import (
-	"io"
 	"os/exec"
 )
 
 // Runner is responsible for asynchronously running commands and writing their
 // output to a OutputSink.
-type Runner struct {
+type runner struct {
 	jobs jobChan
 }
 
-// OutputSink provides methods to handle standard streams of a command.
-type OutputSink interface {
-	OpenStdout() io.Writer
-	OpenStderr() io.Writer
-	Close()
-}
-
 // Callback is called after the command completed and the sink was closed.
-type Callback func()
+type callback func()
 
 // jobChan represents the channel that is used to pass jobInfo objects.
 type jobChan chan *jobInfo
 
 // jobInfo represents a scheduled job.
 type jobInfo struct {
-	sink     OutputSink
+	sink     *sink
 	cmd      *exec.Cmd
-	callback Callback
+	callback callback
 }
 
 // NewRunner creates a new Runner and starts it's dispatch loop.
-func NewRunner() *Runner {
-	r := new(Runner)
+func newRunner() *runner {
+	r := new(runner)
 	r.jobs = make(jobChan)
 	go r.dispatchAndLoop()
 	return r
@@ -43,14 +33,14 @@ func NewRunner() *Runner {
 
 // Run dispatches a command with a given name and args writing standard
 // streams to the sink.
-func (r *Runner) Run(name string, args []string, sink OutputSink, callback Callback) {
+func (r *runner) Run(name string, args []string, s *sink, cb callback) {
 	cmd := exec.Command(name, args...)
-	r.jobs <- &jobInfo{sink, cmd, callback}
+	r.jobs <- &jobInfo{s, cmd, cb}
 }
 
 // dispatchAndLoop reads jobInfo objects from the Runner's jobChan and run
 // them asynchronously, then repeats.
-func (r *Runner) dispatchAndLoop() {
+func (r *runner) dispatchAndLoop() {
 	for {
 		job := <-r.jobs
 		go r.run(job)
@@ -58,14 +48,14 @@ func (r *Runner) dispatchAndLoop() {
 }
 
 // run connects the standard streams to the sink and runs the command.
-func (r *Runner) run(job *jobInfo) {
-	defer job.sink.Close()
+func (r *runner) run(job *jobInfo) {
+	defer job.sink.close()
 	defer func() {
 		go job.callback()
 	}()
 
-	job.cmd.Stdout = job.sink.OpenStdout()
-	job.cmd.Stderr = job.sink.OpenStderr()
+	job.cmd.Stdout = job.sink.openStdout()
+	job.cmd.Stderr = job.sink.openStderr()
 
 	if err := job.cmd.Start(); err != nil {
 		panic(err)
