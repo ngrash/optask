@@ -8,7 +8,8 @@ import (
 
 func main() {
 	project := config.ReadConfig("config.json")
-	tasks := runner.NewService(project)
-	server := web.NewServer(":8080", project, tasks)
-	server.ListenAndServe()
+	runner := runner.NewService(project)
+
+	c := &web.Context{project, runner}
+	web.ListenAndServe(c, ":8080")
 }

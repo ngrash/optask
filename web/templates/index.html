@@ -23,10 +23,10 @@
 			{{- range .Tasks }}
 				<tr>
 					<td>{{ .Name }}</td>
-					<td><a href="latest?task_id={{ .ID }}">latest</a></td>
+					<td><a href="latest?t={{ .ID }}">latest</a></td>
 					<td>
 						<form action="run" method="POST">
-							<input type="hidden" name="task_id" value="{{ .ID }}" />
+							<input type="hidden" name="t" value="{{ .ID }}" />
 							<input type="submit" value="Run" />
 						</form>
 					</td>

@@ -4,23 +4,11 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+
+	"nicograshoff.de/x/optask/internal/model"
 )
 
-type Project struct {
-	ID    string
-	Name  string
-	Logs  string
-	Tasks []Task
-}
-
-type Task struct {
-	ID      string
-	Name    string
-	Command string
-	Args    []string
-}
-
-func ReadConfig(path string) *Project {
+func ReadConfig(path string) *model.Project {
 	file, err := os.Open(path)
 	if err != nil {
 		log.Fatal(err)
@@ -28,7 +16,7 @@ func ReadConfig(path string) *Project {
 
 	defer file.Close()
 
-	project := &Project{}
+	project := &model.Project{}
 	decoder := json.NewDecoder(file)
 	decoder.Decode(project)
 

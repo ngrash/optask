@@ -1,4 +1,4 @@
 optask
 *.swp
 *.swo
-logs/
+*.db

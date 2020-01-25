@@ -1,7 +1,6 @@
 {
 	"ID": "example",
 	"Name": "Example",
-	"Logs": "logs",
 	"Tasks": [
 		{
 			"ID": "whoami",

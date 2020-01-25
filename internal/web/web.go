@@ -7,103 +7,123 @@ import (
 	"net/http"
 	"strings"
 
-	"nicograshoff.de/x/optask/internal/config"
+	"nicograshoff.de/x/optask/internal/model"
 	"nicograshoff.de/x/optask/internal/runner"
+	"nicograshoff.de/x/optask/internal/stdstreams"
 )
 
-type Server struct {
-	addr  string
-	proj  *config.Project
-	tasks *runner.Service
+// Context is passed to each web handler function
+type Context struct {
+	Project *model.Project
+	Runner  *runner.Service
 }
 
-func NewServer(addr string, proj *config.Project, tasks *runner.Service) *Server {
-	s := new(Server)
-	s.addr = addr
-	s.proj = proj
-	s.tasks = tasks
-	return s
+// ListenAndServe starts the web server
+func ListenAndServe(c *Context, addr string) {
+	handle(c, "/", indexHandler)
+	handle(c, "/run", runHandler)
+	handle(c, "/latest", latestHandler)
+	handle(c, "/details", detailsHandler)
+	//handle(c, "/output", outputHandler)
+
+	log.Printf("Serving project " + c.Project.Name + " on " + addr)
+	log.Fatal(http.ListenAndServe(addr, nil))
 }
 
-func (srv *Server) ListenAndServe() {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		template, err := template.ParseFiles("web/templates/index.html")
-		if err != nil {
-			log.Fatal(err)
-		}
+func indexHandler(c *Context, w http.ResponseWriter, r *http.Request) {
+	template, err := template.ParseFiles("web/templates/index.html")
+	if err != nil {
+		log.Panic(err)
+	}
 
-		template.Execute(w, srv.proj)
-	})
+	template.Execute(w, c.Project)
+}
 
-	http.HandleFunc("/run", func(w http.ResponseWriter, r *http.Request) {
-		r.ParseForm()
-		taskID := r.Form.Get("task_id")
-		runID, err := srv.tasks.Run(runner.TaskID(taskID))
-		if err != nil {
-			log.Panic(err)
-		}
+func runHandler(c *Context, w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	tID := r.Form.Get("t")
+	rID, err := c.Runner.Run(model.TaskID(tID))
+	if err != nil {
+		log.Panic(err)
+	}
 
-		http.Redirect(w, r, "/details?task_id="+taskID+"&run_id="+string(runID), http.StatusSeeOther)
-	})
+	http.Redirect(w, r, "/details?t="+tID+"&r="+string(rID), http.StatusSeeOther)
+}
 
-	http.HandleFunc("/latest", func(w http.ResponseWriter, r *http.Request) {
-		r.ParseForm()
-		taskID := runner.TaskID(r.Form.Get("task_id"))
-		runID := srv.tasks.LatestRun(taskID)
-		http.Redirect(w, r, "/details?task_id="+string(taskID)+"&run_id="+string(runID), http.StatusSeeOther)
-	})
+func latestHandler(c *Context, w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	tID := model.TaskID(r.Form.Get("t"))
+	rID, err := c.Runner.LatestRun(tID)
+	if err != nil {
+		log.Panic(err)
+	}
+	http.Redirect(w, r, "/details?t="+string(tID)+"&r="+string(rID), http.StatusSeeOther)
+}
 
-	http.HandleFunc("/details", func(w http.ResponseWriter, r *http.Request) {
-		r.ParseForm()
+func detailsHandler(c *Context, w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
 
-		taskID := runner.TaskID(r.Form.Get("task_id"))
-		runID := runner.RunID(r.Form.Get("run_id"))
+	type viewModel struct {
+		Title     string
+		CmdLine   string
+		Output    []stdstreams.Line
+		IsRunning bool
+	}
 
-		template, err := template.ParseFiles("web/templates/details.html")
-		if err != nil {
-			log.Fatal(err)
-		}
+	tID := model.TaskID(r.Form.Get("t"))
+	rID := model.RunID(r.Form.Get("r"))
 
-		stream, err := srv.tasks.OpenStdout(taskID, runID)
-		defer stream.Close()
+	template, err := template.ParseFiles("web/templates/details.html")
+	if err != nil {
+		log.Panic(err)
+	}
 
-		task, err := srv.tasks.Task(taskID)
+	streams, err := c.Runner.StdStreams(tID, rID)
+	if err != nil {
+		log.Panic(err)
+	}
 
-		type viewModel struct {
-			Title     string
-			CmdLine   string
-			Stdout    []string
-			Stderr    []string
-			IsRunning bool
-		}
+	task, err := c.Runner.Task(tID)
+	if err != nil {
+		log.Panic(err)
+	}
 
-		cmdLine := fmt.Sprintf("%v %v", task.Command, strings.Join(task.Args, " "))
-		isRunning := srv.tasks.IsRunning(taskID, runID)
-		vm := &viewModel{task.Name, cmdLine, stream.Lines(), make([]string, 0), isRunning}
-		template.Execute(w, vm)
-	})
+	cmdLine := fmt.Sprintf("%v %v", task.Command, strings.Join(task.Args, " "))
+	isRunning := c.Runner.IsRunning(tID, rID)
 
-	http.HandleFunc("/output", func(w http.ResponseWriter, r *http.Request) {
-		r.ParseForm()
+	vm := &viewModel{task.Name, cmdLine, streams.Lines(), isRunning}
+	template.Execute(w, vm)
+}
 
-		taskID := runner.TaskID(r.Form.Get("task_id"))
-		runID := runner.RunID(r.Form.Get("run_id"))
+/*func outputHandler(c *Context, w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
 
-		stdout, err := srv.tasks.OpenStdout(taskID, runID)
-		if err != nil {
-			panic(err)
-		}
-		defer stdout.Close()
+	tID := model.TaskID(r.Form.Get("t"))
+	rID := model.RunID(r.Form.Get("r"))
 
-		if srv.tasks.IsRunning(taskID, runID) {
-			w.Header().Set("Optask-Running", "1")
-		} else {
-			w.Header().Set("Optask-Running", "0")
-		}
+	streams, err := c.runner.StdStreams(tID, rID)
+	if err != nil {
+		log.Panic(err)
+	}
 
-		stdout.WriteTo(w)
-	})
+	if c.runner.IsRunning(tID, rID) {
+		w.Header().Set("Optask-Running", "1")
+	} else {
+		w.Header().Set("Optask-Running", "0")
+	}
 
-	log.Printf("Serving project " + srv.proj.Name)
-	log.Fatal(http.ListenAndServe(srv.addr, nil))
+	streams.WriteTo(w)
+}*/
+
+type handleFunc func(http.ResponseWriter, *http.Request)
+type handleContextFunc func(*Context, http.ResponseWriter, *http.Request)
+
+func handle(c *Context, pattern string, fn handleContextFunc) {
+	http.HandleFunc(pattern, makeHandler(fn, c))
+}
+
+func makeHandler(fn handleContextFunc, c *Context) handleFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fn(c, w, r)
+	}
 }
