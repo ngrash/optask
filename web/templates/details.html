@@ -17,27 +17,16 @@
 			{{ .Title }}
 		</h1>
 		<kbd>$ {{ .CmdLine }}</kbd>
-		<h2>Stderr</h2>
-		<div class="std-stream stderr">
-			{{- if .Stderr }}
+		<h2>Output</h2>
+		<div class="std-stream">
+			{{- if .Output }}
 			<pre>
-			{{- range .Stderr }}
-{{ . }}
+			{{- range .Output }}
+{{ .Text }}
 			{{- end }}
 			</pre>
 			{{- else }}
-				&#128077; No stderr. 
-			{{- end }}
-		<h2>Stdout</h2>
-		<div class="std-stream stdout">
-			{{- if .Stdout }}
-			<pre>
-			{{- range .Stdout }}
-{{ . }}
-			{{- end }}
-			</pre>
-			{{- else }}
-				No stdout.
+				No output. 
 			{{- end }}
 		</div>
 	</body>
