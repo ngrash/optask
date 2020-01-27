@@ -19,9 +19,9 @@
 		<kbd>$ {{ .CmdLine }}</kbd>
 		<h2>Output</h2>
 		<div class="std-stream">
-			{{- if .Output }}
-			<pre>
-			{{- range .Output }}
+			{{- if or .Lines .IsRunning }}
+			<pre id="output">
+			{{- range .Lines }}
 {{ .Text }}
 			{{- end }}
 			</pre>
@@ -29,5 +29,49 @@
 				No output. 
 			{{- end }}
 		</div>
+
+
+		{{- if .IsRunning }}
+		<script>
+			(function() {
+				var rID = "{{ .RunID }}";
+				var tID = "{{ .TaskID }}";
+				var numLines = {{ .NumLines }};
+				var output = document.getElementById("output");
+				if(numLines == 0) {
+					output.innerHTML = "";
+				}
+
+				function fetch() {
+					var r = new XMLHttpRequest();
+					var url = "output?t=" + tID + "&r=" + rID + "&s=" + numLines;
+					r.open("GET", url, true);
+					r.onreadystatechange = function() {
+						if(r.readyState != 4) {
+							return;
+						}
+
+						if(r.status != 200) {
+							console.error("Unexpected response status " + r.status);
+							return;
+						}
+
+						var json = JSON.parse(r.responseText);
+						for(var i = 0; i < json.length; i++) {
+							numLines++;
+							var line = json[i];
+							output.innerHTML += line.Text + "\n";
+						}
+
+						if(r.getResponseHeader("Optask-Running") == "1") {
+							setTimeout(fetch, 200);
+						}
+					};
+					r.send();
+				};
+				fetch();
+			})();
+		</script>
+		{{- end }}
 	</body>
 </html>

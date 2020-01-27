@@ -3,6 +3,7 @@ package stdstreams
 import (
 	"bytes"
 	"encoding/gob"
+	"encoding/json"
 	"io"
 	"sync"
 	"time"
@@ -67,6 +68,10 @@ func (l *Log) Lines() []Line {
 func (l *Log) Flush() {
 	l.errW.Flush()
 	l.outW.Flush()
+}
+
+func (l *Log) JSON(skip int) ([]byte, error) {
+	return json.Marshal(l.lines[skip:])
 }
 
 func (l *Log) MarshalBinary() ([]byte, error) {

@@ -1,10 +1,12 @@
 package web
 
 import (
+	"bytes"
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"nicograshoff.de/x/optask/internal/model"
@@ -24,7 +26,7 @@ func ListenAndServe(c *Context, addr string) {
 	handle(c, "/run", runHandler)
 	handle(c, "/latest", latestHandler)
 	handle(c, "/details", detailsHandler)
-	//handle(c, "/output", outputHandler)
+	handle(c, "/output", outputHandler)
 
 	log.Printf("Serving project " + c.Project.Name + " on " + addr)
 	log.Fatal(http.ListenAndServe(addr, nil))
@@ -66,8 +68,11 @@ func detailsHandler(c *Context, w http.ResponseWriter, r *http.Request) {
 	type viewModel struct {
 		Title     string
 		CmdLine   string
-		Output    []stdstreams.Line
+		Lines     []stdstreams.Line
+		NumLines  int
 		IsRunning bool
+		RunID     string
+		TaskID    string
 	}
 
 	tID := model.TaskID(r.Form.Get("t"))
@@ -91,29 +96,40 @@ func detailsHandler(c *Context, w http.ResponseWriter, r *http.Request) {
 	cmdLine := fmt.Sprintf("%v %v", task.Command, strings.Join(task.Args, " "))
 	isRunning := c.Runner.IsRunning(tID, rID)
 
-	vm := &viewModel{task.Name, cmdLine, streams.Lines(), isRunning}
+	lines := streams.Lines()
+	vm := &viewModel{task.Name, cmdLine, lines, len(lines), isRunning, string(rID), string(tID)}
 	template.Execute(w, vm)
 }
 
-/*func outputHandler(c *Context, w http.ResponseWriter, r *http.Request) {
+func outputHandler(c *Context, w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 
 	tID := model.TaskID(r.Form.Get("t"))
 	rID := model.RunID(r.Form.Get("r"))
-
-	streams, err := c.runner.StdStreams(tID, rID)
+	skip, err := strconv.Atoi(r.Form.Get("s"))
 	if err != nil {
 		log.Panic(err)
 	}
 
-	if c.runner.IsRunning(tID, rID) {
+	streams, err := c.Runner.StdStreams(tID, rID)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	if c.Runner.IsRunning(tID, rID) {
 		w.Header().Set("Optask-Running", "1")
 	} else {
 		w.Header().Set("Optask-Running", "0")
 	}
 
-	streams.WriteTo(w)
-}*/
+	json, err := streams.JSON(skip)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	buf := bytes.NewBuffer(json)
+	buf.WriteTo(w)
+}
 
 type handleFunc func(http.ResponseWriter, *http.Request)
 type handleContextFunc func(*Context, http.ResponseWriter, *http.Request)
