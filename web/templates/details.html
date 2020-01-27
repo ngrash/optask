@@ -5,26 +5,19 @@
 	</head>
 	<body>
 		<nav>
-			<a href="..">&#8962; Home</a>
-			<hr>
+			<a href="..">Home</a>
 		</nav>
 		<h1>
-			{{- if .IsRunning }}
-				&#8987;
-			{{- else }}
-				&#9788;
-			{{- end }}
 			{{ .Title }}
 		</h1>
 		<kbd>$ {{ .CmdLine }}</kbd>
-		<h2>Output</h2>
-		<div class="std-stream">
+		<div>
 			{{- if or .Lines .IsRunning }}
 			<pre id="output">
 			{{- range .Lines }}
 {{ .Text }}
 			{{- end }}
-			</pre>
+</pre>
 			{{- else }}
 				No output. 
 			{{- end }}
