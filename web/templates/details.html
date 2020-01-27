@@ -18,6 +18,9 @@
 {{ .Text }}
 			{{- end }}
 </pre>
+			{{- if .IsRunning }}
+			<span id="running-indicator">...</span>
+			{{- end }}
 			{{- else }}
 				No output. 
 			{{- end }}
@@ -38,7 +41,7 @@
 				function fetch() {
 					var r = new XMLHttpRequest();
 					var url = "output?t=" + tID + "&r=" + rID + "&s=" + numLines;
-					r.open("GET", url, true);
+					r.open("GET", url);
 					r.onreadystatechange = function() {
 						if(r.readyState != 4) {
 							return;
@@ -58,6 +61,8 @@
 
 						if(r.getResponseHeader("Optask-Running") == "1") {
 							setTimeout(fetch, 200);
+						} else {
+							document.getElementById("running-indicator").remove();
 						}
 					};
 					r.send();
