@@ -1,5 +1,7 @@
 package model
 
+import "time"
+
 type RunID string
 
 type TaskID string
@@ -11,8 +13,15 @@ type Project struct {
 }
 
 type Task struct {
-	ID      TaskID
-	Name    string
-	Command string
-	Args    []string
+	ID   TaskID
+	Name string
+	Cmd  string
+	Args []string
+}
+
+type Run struct {
+	ID        RunID
+	Started   time.Time
+	Completed time.Time
+	ExitCode  int
 }

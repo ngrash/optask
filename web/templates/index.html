@@ -1,14 +1,14 @@
 <!doctype html>
 <html>
 	<head>
-		<title>{{ .Name }}</title>
+		<title>{{ .Title }}</title>
 	</head>
 	<body>
 		<nav>
 			Home
 		</nav>
-		<h1>{{ .Name }}</h1>
-		{{ if .Tasks }}
+		<h1>{{ .Title }}</h1>
+		{{ with .Tasks }}
 		<table>
 			<thead>
 				<tr>
@@ -18,10 +18,24 @@
 				</tr>
 			</thead>
 			<tbody>
-			{{- range .Tasks }}
+			{{- range . }}
 				<tr>
 					<td>{{ .Name }}</td>
-					<td><a href="latest?t={{ .ID }}">latest</a></td>
+					<td>
+						{{- if .LastRun.Exists }}
+						<a href="details?t={{ .ID }}&r={{ .LastRun.ID}}">
+							{{ with .LastRun }}
+							{{- if .Running}}
+							Started {{ .Duration.String }} ago
+							{{ else }}
+							Completed {{ .Duration.String }} ago
+							{{ end }}
+							{{ end }}
+						</a>
+						{{ else }}
+							None
+						{{ end }}
+					</td>
 					<td>
 						<form action="run" method="POST">
 							<input type="hidden" name="t" value="{{ .ID }}" />

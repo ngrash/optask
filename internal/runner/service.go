@@ -2,7 +2,7 @@ package runner
 
 import (
 	"errors"
-	"fmt"
+	"time"
 
 	"nicograshoff.de/x/optask/internal/db"
 	"nicograshoff.de/x/optask/internal/model"
@@ -14,19 +14,24 @@ type Service struct {
 	project *model.Project
 	runner  *runner
 	db      *db.Adapter
-	logs    map[model.TaskID]map[model.RunID]*stdstreams.Log
+	runs    map[model.TaskID]map[model.RunID]runData
+}
+
+type runData struct {
+	r *model.Run
+	l *stdstreams.Log
 }
 
 func NewService(p *model.Project) *Service {
 	r := newRunner()
 	db := db.NewAdapter(p.ID+".db", p)
 
-	logs := make(map[model.TaskID]map[model.RunID]*stdstreams.Log)
+	runs := make(map[model.TaskID]map[model.RunID]runData)
 	for _, t := range p.Tasks {
-		logs[t.ID] = make(map[model.RunID]*stdstreams.Log)
+		runs[t.ID] = make(map[model.RunID]runData)
 	}
 
-	return &Service{p, r, db, logs}
+	return &Service{p, r, db, runs}
 }
 
 func (s *Service) ListTasks() []model.Task {
@@ -49,39 +54,47 @@ func (s *Service) Run(tID model.TaskID) (model.RunID, error) {
 		return "", err
 	}
 
-	rID, err := s.db.CreateRun(tID)
-	if err != nil {
+	log := stdstreams.NewLog()
+
+	r := model.Run{Started: time.Now()}
+	if err := s.db.CreateRun(tID, &r); err != nil {
 		return "", err
 	}
 
-	log := stdstreams.NewLog()
-	s.logs[tID][rID] = log
+	s.runs[tID][r.ID] = runData{&r, log}
 
-	s.runner.Run(task.Command, task.Args, log, func() {
-		if err := s.db.SaveRunLog(tID, rID, log); err != nil {
-			fmt.Println(err)
+	s.runner.Run(task.Cmd, task.Args, log, func(exit int) {
+		r.Completed = time.Now()
+		r.ExitCode = exit
+
+		if err := s.db.SaveRun(tID, &r); err != nil {
+			panic(err)
 		}
 
-		delete(s.logs[tID], rID)
+		if err := s.db.SaveLog(tID, r.ID, log); err != nil {
+			panic(err)
+		}
+
+		delete(s.runs[tID], r.ID)
 	})
 
-	return rID, nil
+	return r.ID, nil
 }
 
 func (s *Service) IsRunning(tID model.TaskID, rID model.RunID) bool {
-	_, ok := s.logs[tID][rID]
+	_, ok := s.runs[tID][rID]
 	return ok
 }
 
-func (s *Service) LatestRun(tID model.TaskID) (model.RunID, error) {
-	return s.db.LatestRun(tID)
+func (s *Service) LatestRuns() (map[model.TaskID]*model.Run, error) {
+	return s.db.LatestRuns()
 }
 
 func (s *Service) StdStreams(tID model.TaskID, rID model.RunID) (*stdstreams.Log, error) {
-	log, ok := s.logs[tID][rID]
+	run, ok := s.runs[tID][rID]
 	if ok {
-		return log, nil
+		return run.l, nil
 	} else {
-		return s.db.RunLog(tID, rID)
+		return s.db.Log(tID, rID)
 	}
 }

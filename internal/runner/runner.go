@@ -10,7 +10,7 @@ type runner struct {
 	jobs chan *jobInfo
 }
 
-type doneFunc func()
+type doneFunc func(exit int)
 
 type jobInfo struct {
 	cmd    *exec.Cmd
@@ -41,14 +41,24 @@ func (r *runner) run(job *jobInfo) {
 	job.cmd.Stdout = job.log.Stdout()
 	job.cmd.Stderr = job.log.Stderr()
 
-	if err := job.cmd.Start(); err != nil {
+	err := job.cmd.Start()
+	exitErr, isExitErr := err.(*exec.ExitError)
+	if err != nil && !isExitErr {
 		panic(err)
 	}
 
-	if err := job.cmd.Wait(); err != nil {
+	err = job.cmd.Wait()
+	exitErr, isExitErr = err.(*exec.ExitError)
+	if err != nil && !isExitErr {
 		panic(err)
 	}
 
 	job.log.Flush()
-	job.doneFn()
+
+	exit := 0
+	if isExitErr {
+		exit = exitErr.ExitCode()
+	}
+
+	job.doneFn(exit)
 }

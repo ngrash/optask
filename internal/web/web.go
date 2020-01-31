@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"nicograshoff.de/x/optask/internal/model"
 	"nicograshoff.de/x/optask/internal/runner"
@@ -24,7 +25,6 @@ type Context struct {
 func ListenAndServe(c *Context, addr string) {
 	handle(c, "/", indexHandler)
 	handle(c, "/run", runHandler)
-	handle(c, "/latest", latestHandler)
 	handle(c, "/details", detailsHandler)
 	handle(c, "/output", outputHandler)
 
@@ -38,7 +38,57 @@ func indexHandler(c *Context, w http.ResponseWriter, r *http.Request) {
 		log.Panic(err)
 	}
 
-	template.Execute(w, c.Project)
+	runs, err := c.Runner.LatestRuns()
+	if err != nil {
+		log.Panic(err)
+	}
+
+	type runView struct {
+		ID       string
+		ExitCode int
+		Running  bool
+		Duration time.Duration
+		Exists   bool
+	}
+
+	type taskView struct {
+		ID, Name string
+		LastRun  runView
+	}
+
+	type view struct {
+		Title string
+		Tasks []taskView
+	}
+
+	tasks := make([]taskView, len(c.Project.Tasks))
+	for i, t := range c.Project.Tasks {
+		tasks[i] = taskView{ID: string(t.ID), Name: t.Name}
+		r := runs[t.ID]
+		if r != nil {
+			lr := runView{
+				ID:       string(r.ID),
+				Running:  c.Runner.IsRunning(t.ID, r.ID),
+				ExitCode: r.ExitCode,
+				Exists:   true,
+			}
+
+			if lr.Running {
+				lr.Duration = time.Since(r.Started)
+			} else {
+				lr.Duration = time.Since(r.Completed)
+			}
+
+			lr.Duration = lr.Duration.Truncate(time.Second)
+
+			tasks[i].LastRun = lr
+		}
+	}
+
+	template.Execute(w, view{
+		c.Project.Name,
+		tasks,
+	})
 }
 
 func runHandler(c *Context, w http.ResponseWriter, r *http.Request) {
@@ -50,16 +100,6 @@ func runHandler(c *Context, w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/details?t="+tID+"&r="+string(rID), http.StatusSeeOther)
-}
-
-func latestHandler(c *Context, w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-	tID := model.TaskID(r.Form.Get("t"))
-	rID, err := c.Runner.LatestRun(tID)
-	if err != nil {
-		log.Panic(err)
-	}
-	http.Redirect(w, r, "/details?t="+string(tID)+"&r="+string(rID), http.StatusSeeOther)
 }
 
 func detailsHandler(c *Context, w http.ResponseWriter, r *http.Request) {
@@ -93,7 +133,7 @@ func detailsHandler(c *Context, w http.ResponseWriter, r *http.Request) {
 		log.Panic(err)
 	}
 
-	cmdLine := fmt.Sprintf("%v %v", task.Command, strings.Join(task.Args, " "))
+	cmdLine := fmt.Sprintf("%v %v", task.Cmd, strings.Join(task.Args, " "))
 	isRunning := c.Runner.IsRunning(tID, rID)
 
 	lines := streams.Lines()

@@ -10,12 +10,110 @@ import (
 )
 
 var project = &model.Project{
-	"testing",
-	"Testing",
-	[]model.Task{
-		model.Task{"t1", "Task 1", "true", []string{}},
-		model.Task{"t2", "Task 2", "false", []string{}},
+	ID:   "testing",
+	Name: "Testing",
+	Tasks: []model.Task{
+		model.Task{ID: "t1", Name: "Task 1", Cmd: "true", Args: []string{}},
+		model.Task{ID: "t2", Name: "Task 2", Cmd: "false", Args: []string{}},
 	},
+}
+
+func TestCreateRun(t *testing.T) {
+	withTmpDB(t, func(a *Adapter) {
+		r := model.Run{}
+		err := a.CreateRun(project.Tasks[0].ID, &r)
+
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		if r.ID != "1" {
+			t.Errorf("Expected rID == 1, got: %v", r.ID)
+		}
+	})
+}
+
+func TestSaveRun(t *testing.T) {
+	withTmpDB(t, func(a *Adapter) {
+		r := model.Run{ID: "1"}
+		err := a.SaveRun(project.Tasks[0].ID, &r)
+		if err != nil {
+			t.Fatalf("Unexpected error. %v", err)
+		}
+	})
+}
+
+func TestLatestRuns(t *testing.T) {
+	withTmpDB(t, func(a *Adapter) {
+		var r model.Run
+
+		tID1 := project.Tasks[0].ID
+		tID2 := project.Tasks[1].ID
+
+		a.CreateRun(tID1, &r)
+		a.CreateRun(tID1, &r)
+
+		runs, err := a.LatestRuns()
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		if runs[tID1].ID != "2" {
+			t.Errorf("Expected ID == \"2\", got: \"%v\"", runs[tID1].ID)
+		}
+
+		if runs[tID2] != nil {
+			t.Errorf("Expected runs[tID2] == nil but wasn't")
+		}
+	})
+}
+
+func TestRun(t *testing.T) {
+	withTmpDB(t, func(a *Adapter) {
+		var r model.Run
+		tID := project.Tasks[0].ID
+		a.CreateRun(tID, &r)
+
+		subject, err := a.Run(tID, r.ID)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		if subject.ID != r.ID {
+			t.Errorf("Expected ID == \"%v\", got: \"%v\"", r.ID, subject.ID)
+		}
+	})
+}
+
+func TestSaveLog(t *testing.T) {
+	withTmpDB(t, func(a *Adapter) {
+		l := stdstreams.NewLog()
+		l.Stdout().Write([]byte("hello\n"))
+
+		err := a.SaveLog(project.Tasks[0].ID, "1", l)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+	})
+}
+
+func TestLog(t *testing.T) {
+	withTmpDB(t, func(a *Adapter) {
+		tID := project.Tasks[0].ID
+
+		l := stdstreams.NewLog()
+		l.Stdout().Write([]byte("hello\n"))
+		a.SaveLog(tID, "1", l)
+
+		l, err := a.Log(tID, "1")
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		if l.Lines()[0].Text != "hello" {
+			t.Errorf("Expected Text == \"hello\", got: \"%v\"", l.Lines()[0].Text)
+		}
+	})
 }
 
 func withTmpDB(t *testing.T, fn func(*Adapter)) {
@@ -31,58 +129,4 @@ func withTmpDB(t *testing.T, fn func(*Adapter)) {
 	defer db.Close()
 
 	fn(db)
-}
-
-func TestCreateRun(t *testing.T) {
-	withTmpDB(t, func(a *Adapter) {
-		rID, err := a.CreateRun(project.Tasks[0].ID)
-
-		if err != nil {
-			t.Errorf("Unexpected error: %v", err)
-		}
-
-		if rID != "1" {
-			t.Errorf("Expected rID == 1, got: %v", rID)
-		}
-	})
-}
-
-func TestLatestRun(t *testing.T) {
-	withTmpDB(t, func(a *Adapter) {
-		tID := project.Tasks[0].ID
-		a.CreateRun(tID)
-		rID, _ := a.CreateRun(tID)
-
-		if latest, _ := a.LatestRun(tID); latest != rID {
-			t.Errorf("Expected latest == %v, got: %v", rID, latest)
-		}
-	})
-}
-
-func TestRunLog(t *testing.T) {
-	withTmpDB(t, func(a *Adapter) {
-		tID := project.Tasks[0].ID
-		rID, _ := a.CreateRun(tID)
-		log := stdstreams.NewLog()
-		log.Stdout().Write([]byte("hello\n"))
-		err := a.SaveRunLog(tID, rID, log)
-		if err != nil {
-			t.Errorf("Unexpected error: %v", err)
-		}
-
-		log2, err := a.RunLog(tID, rID)
-		if err != nil {
-			t.Errorf("Unexpected error: %v", err)
-		} else if log2 == nil {
-			t.Fatal("err == nil but log == nil too")
-		}
-
-		if len(log2.Lines()) != 1 {
-			t.Errorf("Expected 1 line, got: %v", len(log2.Lines()))
-		}
-
-		if log2.Lines()[0].Text != "hello" {
-			t.Errorf("Expected Text == \"hello\", got: \"%v\"", log2.Lines()[0].Text)
-		}
-	})
 }

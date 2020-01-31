@@ -7,15 +7,26 @@ import (
 
 func updateSchema(db *bolt.DB, p *model.Project) error {
 	return db.Update(func(tx *bolt.Tx) error {
-		// Create Tasks bucket
-		tasks, err := tx.CreateBucketIfNotExists([]byte(TasksBucket))
+		// Create Runs bucket
+		rBkt, err := tx.CreateBucketIfNotExists([]byte("Runs"))
 		if err != nil {
 			return err
 		}
 
+		// Create Logs bucket
+		lBkt, err := tx.CreateBucketIfNotExists([]byte("Logs"))
+		if err != nil {
+			return nil
+		}
+
 		// Create bucket per task
-		for _, task := range p.Tasks {
-			_, err = tasks.CreateBucketIfNotExists([]byte(task.ID))
+		for _, t := range p.Tasks {
+			_, err = rBkt.CreateBucketIfNotExists([]byte(t.ID))
+			if err != nil {
+				return err
+			}
+
+			_, err = lBkt.CreateBucketIfNotExists([]byte(t.ID))
 			if err != nil {
 				return err
 			}
