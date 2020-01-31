@@ -1,15 +1,21 @@
 package main
 
 import (
+	"log"
+
 	"nicograshoff.de/x/optask/internal/config"
 	"nicograshoff.de/x/optask/internal/runner"
 	"nicograshoff.de/x/optask/internal/web"
 )
 
 func main() {
-	project := config.ReadConfig("config.json")
+	project, err := config.ReadConfig("config.json")
+	if err != nil {
+		log.Fatalf("Error reading config: %v", err)
+	}
+
 	runner := runner.NewService(project)
 
-	c := &web.Context{project, runner}
-	web.ListenAndServe(c, ":8080")
+	c := web.Context{Project: project, Runner: runner}
+	web.ListenAndServe(&c, ":8080")
 }
