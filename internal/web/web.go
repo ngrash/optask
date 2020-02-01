@@ -27,6 +27,7 @@ func ListenAndServe(c *Context, addr string) {
 	handle(c, "/run", runHandler)
 	handle(c, "/details", detailsHandler)
 	handle(c, "/output", outputHandler)
+	handle(c, "/history", historyHandler)
 
 	log.Printf("Serving project " + c.Project.Name + " on " + addr)
 	log.Fatal(http.ListenAndServe(addr, nil))
@@ -67,10 +68,9 @@ func indexHandler(c *Context, w http.ResponseWriter, r *http.Request) {
 		r := runs[t.ID]
 		if r != nil {
 			lr := runView{
-				ID:       string(r.ID),
-				Running:  c.Runner.IsRunning(t.ID, r.ID),
-				ExitCode: r.ExitCode,
-				Exists:   true,
+				ID:      string(r.ID),
+				Running: c.Runner.IsRunning(t.ID, r.ID),
+				Exists:  true,
 			}
 
 			if lr.Running {
@@ -169,6 +169,69 @@ func outputHandler(c *Context, w http.ResponseWriter, r *http.Request) {
 
 	buf := bytes.NewBuffer(json)
 	buf.WriteTo(w)
+}
+
+func historyHandler(c *Context, w http.ResponseWriter, r *http.Request) {
+	template, err := template.ParseFiles("web/templates/history.html")
+	if err != nil {
+		log.Panic(err)
+	}
+
+	r.ParseForm()
+
+	tID := model.TaskID(r.Form.Get("t"))
+	before := model.RunID(r.Form.Get("b"))
+
+	runs, err := c.Runner.Runs(tID, before, 50)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	type runView struct {
+		ID       string
+		Running  bool
+		Duration time.Duration
+	}
+
+	type taskView struct {
+		ID   string
+		Name string
+	}
+
+	type view struct {
+		Title string
+		Task  taskView
+		Runs  []runView
+	}
+
+	runViews := make([]runView, len(runs))
+	for i, r := range runs {
+		v := runView{
+			ID:      string(r.ID),
+			Running: c.Runner.IsRunning(tID, r.ID),
+		}
+
+		if v.Running {
+			v.Duration = time.Since(r.Started)
+		} else {
+			v.Duration = time.Since(r.Completed)
+		}
+
+		v.Duration = v.Duration.Truncate(time.Second)
+
+		runViews[i] = v
+	}
+
+	t, _ := c.Runner.Task(tID)
+
+	template.Execute(w, view{
+		Title: c.Project.Name,
+		Task: taskView{
+			ID:   string(tID),
+			Name: t.Name,
+		},
+		Runs: runViews,
+	})
 }
 
 type handleFunc func(http.ResponseWriter, *http.Request)

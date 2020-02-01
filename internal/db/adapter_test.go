@@ -85,6 +85,62 @@ func TestRun(t *testing.T) {
 	})
 }
 
+func TestRuns(t *testing.T) {
+	t.Run("Order", func(t *testing.T) {
+		withTmpDB(t, func(a *Adapter) {
+			tID := project.Tasks[0].ID
+
+			var r model.Run
+			a.CreateRun(tID, &r)
+			a.CreateRun(tID, &r)
+			a.CreateRun(tID, &r)
+
+			runs, err := a.Runs(tID, "", 3)
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if len(runs) != 3 {
+				t.Fatalf("Expected 3 runs, got: %v", len(runs))
+			}
+
+			if runs[0].ID != "3" {
+				t.Errorf("Expected runs[0].ID == 3, got: %v", runs[0].ID)
+			}
+
+			if runs[1].ID != "2" {
+				t.Errorf("Expected runs[1].ID == 3, got: %v", runs[1].ID)
+			}
+
+			if runs[2].ID != "1" {
+				t.Errorf("Expected runs[2].ID == 3, got: %v", runs[2].ID)
+			}
+		})
+	})
+
+	t.Run("LessRunsThanCount", func(t *testing.T) {
+		withTmpDB(t, func(a *Adapter) {
+			tID := project.Tasks[0].ID
+
+			var r model.Run
+			a.CreateRun(tID, &r) // "1"
+			a.CreateRun(tID, &r) // "2"
+			a.CreateRun(tID, &r) // "3"
+
+			runs, err := a.Runs(tID, "2", 10)
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if len(runs) != 1 {
+				t.Errorf("Expected 10 runs, got: %v", len(runs))
+			}
+		})
+	})
+}
+
 func TestSaveLog(t *testing.T) {
 	withTmpDB(t, func(a *Adapter) {
 		l := stdstreams.NewLog()

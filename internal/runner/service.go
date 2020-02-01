@@ -81,6 +81,10 @@ func (s *Service) Run(tID model.TaskID) (model.RunID, error) {
 	return r.ID, nil
 }
 
+func (s *Service) Runs(tID model.TaskID, before model.RunID, count int) ([]*model.Run, error) {
+	return s.db.Runs(tID, before, count)
+}
+
 func (s *Service) IsRunning(tID model.TaskID, rID model.RunID) bool {
 	_, ok := s.runs[tID][rID]
 	return ok

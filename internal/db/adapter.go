@@ -108,6 +108,53 @@ func (a *Adapter) LatestRuns() (map[model.TaskID]*model.Run, error) {
 	return ret, err
 }
 
+func (a *Adapter) Runs(tID model.TaskID, before model.RunID, count int) ([]*model.Run, error) {
+	ret := make([]*model.Run, count)
+	err := a.db.View(func(tx *bolt.Tx) error {
+		bkt := taskRunBucket(tx, tID)
+		c := bkt.Cursor()
+
+		var initCursor func() ([]byte, []byte)
+		if before == "" {
+			initCursor = func() ([]byte, []byte) { return c.Last() }
+		} else {
+			kb, err := stob(string(before))
+			if err != nil {
+				return err
+			}
+
+			initCursor = func() ([]byte, []byte) {
+				c.Seek(kb)
+				return c.Prev()
+			}
+		}
+
+		n := 0
+		for k, rBin := initCursor(); n < count; k, rBin = c.Prev() {
+			if k == nil {
+				small := make([]*model.Run, n)
+				copy(small, ret)
+				ret = small
+				break
+			}
+
+			r := model.Run{}
+			buf := bytes.NewBuffer(rBin)
+			dec := gob.NewDecoder(buf)
+			if err := dec.Decode(&r); err != nil {
+				return err
+			}
+
+			ret[n] = &r
+			n++
+		}
+
+		return nil
+	})
+
+	return ret, err
+}
+
 func (a *Adapter) Run(tID model.TaskID, rID model.RunID) (*model.Run, error) {
 	k, err := stob(string(rID))
 	if err != nil {
