@@ -135,7 +135,7 @@ func TestRuns(t *testing.T) {
 			}
 
 			if len(runs) != 1 {
-				t.Errorf("Expected 10 runs, got: %v", len(runs))
+				t.Errorf("Expected 1 run, got: %v", len(runs))
 			}
 		})
 	})
@@ -181,7 +181,10 @@ func withTmpDB(t *testing.T, fn func(*Adapter)) {
 
 	defer os.Remove(f.Name())
 
-	db := NewAdapter(f.Name(), project)
+	db, err := NewAdapter(f.Name(), project)
+	if err != nil {
+		t.Fatalf("Failed to create adapter: %v", err)
+	}
 	defer db.Close()
 
 	fn(db)

@@ -1,10 +1,10 @@
+// Package db provides types to access the persistence layer.
 package db
 
 import (
 	"bytes"
 	"encoding/binary"
 	"encoding/gob"
-	"log"
 	"strconv"
 	"time"
 
@@ -13,31 +13,41 @@ import (
 	"nicograshoff.de/x/optask/internal/stdstreams"
 )
 
-const OpenTimeout = 1 * time.Second
+const openTimeout = 1 * time.Second // timeout for bolt.Open
+const dbPerm = 0600                 // file permissions for new databases
 
+// Adapter represents a database adapter.
 type Adapter struct {
 	db *bolt.DB
 	p  *model.Project
 }
 
-func NewAdapter(file string, p *model.Project) *Adapter {
-	db, err := bolt.Open(file, 0600, &bolt.Options{Timeout: OpenTimeout})
+// NewAdapter creates an Adapter for the given database file. If the file does not exist, a
+// dabase is created. Otherwise the database is opened and the schema is updated if necessary.
+func NewAdapter(file string, p *model.Project) (*Adapter, error) {
+	opts := bolt.Options{
+		Timeout: openTimeout, // w/o Timeout bolt.Open blocks until file is unlocked
+	}
+
+	db, err := bolt.Open(file, dbPerm, &opts)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	err = updateSchema(db, p)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	return &Adapter{db, p}
+	return &Adapter{db, p}, nil
 }
 
+// Close closes the underlying database.
 func (a *Adapter) Close() {
 	a.db.Close()
 }
 
+// CreateRun saves the given run for the given task. Sets a task-unique run ID before persisting.
 func (a *Adapter) CreateRun(tID model.TaskID, r *model.Run) error {
 	return a.db.Update(func(tx *bolt.Tx) error {
 		bkt := taskRunBucket(tx, tID)
@@ -45,12 +55,10 @@ func (a *Adapter) CreateRun(tID model.TaskID, r *model.Run) error {
 		s, _ := bkt.NextSequence()
 		r.ID = model.RunID(itos(s))
 
-		var buf bytes.Buffer
-		enc := gob.NewEncoder(&buf)
-		if err := enc.Encode(r); err != nil {
+		b, err := encRun(r)
+		if err != nil {
 			return err
 		}
-		b := buf.Bytes()
 
 		if err := bkt.Put(itob(s), b); err != nil {
 			return err
@@ -60,10 +68,10 @@ func (a *Adapter) CreateRun(tID model.TaskID, r *model.Run) error {
 	})
 }
 
+// SaveRun saves the given run for the given task. Use CreateRun instead if the run does not have an ID yet.
 func (a *Adapter) SaveRun(tID model.TaskID, r *model.Run) error {
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	if err := enc.Encode(r); err != nil {
+	rBytes, err := encRun(r)
+	if err != nil {
 		return err
 	}
 
@@ -74,11 +82,13 @@ func (a *Adapter) SaveRun(tID model.TaskID, r *model.Run) error {
 
 	return a.db.Update(func(tx *bolt.Tx) error {
 		bkt := taskRunBucket(tx, tID)
-		bkt.Put(key, buf.Bytes())
+		bkt.Put(key, rBytes)
 		return nil
 	})
 }
 
+// LatestRuns returns a map of model.TaskID mapped to the latest run each.
+// If a task never ran, its ID will not be in the map.
 func (a *Adapter) LatestRuns() (map[model.TaskID]*model.Run, error) {
 	ret := make(map[model.TaskID]*model.Run)
 	err := a.db.View(func(tx *bolt.Tx) error {
@@ -88,64 +98,59 @@ func (a *Adapter) LatestRuns() (map[model.TaskID]*model.Run, error) {
 		for tKey, _ := tCur.First(); tKey != nil; tKey, _ = tCur.Next() {
 			tBkt := runsBkt.Bucket(tKey)
 			rCur := tBkt.Cursor()
-			rKey, rBin := rCur.Last()
+			rKey, b := rCur.Last()
 			if rKey == nil {
-				continue
+				continue // never ran
 			}
 
-			r := model.Run{}
-			buf := bytes.NewBuffer(rBin)
-			dec := gob.NewDecoder(buf)
-			if err := dec.Decode(&r); err != nil {
+			r, err := decRun(b)
+			if err != nil {
 				return err
 			}
 
-			ret[model.TaskID(tKey)] = &r
+			ret[model.TaskID(tKey)] = r
 		}
-
 		return nil
 	})
 	return ret, err
 }
 
+// Runs returns count runs for a given task ordered by time of creation. If before is not empty,
+// only runs that where created before that given run are returned.
 func (a *Adapter) Runs(tID model.TaskID, before model.RunID, count int) ([]*model.Run, error) {
 	ret := make([]*model.Run, count)
 	err := a.db.View(func(tx *bolt.Tx) error {
 		bkt := taskRunBucket(tx, tID)
 		c := bkt.Cursor()
 
-		var initCursor func() ([]byte, []byte)
+		var rKey, rBin []byte
 		if before == "" {
-			initCursor = func() ([]byte, []byte) { return c.Last() }
+			rKey, rBin = c.Last()
 		} else {
 			kb, err := stob(string(before))
 			if err != nil {
 				return err
 			}
 
-			initCursor = func() ([]byte, []byte) {
-				c.Seek(kb)
-				return c.Prev()
-			}
+			c.Seek(kb)
+			rKey, rBin = c.Prev()
 		}
 
 		n := 0
-		for k, rBin := initCursor(); n < count; k, rBin = c.Prev() {
-			if k == nil {
+		for ; n < count; rKey, rBin = c.Prev() {
+			if rKey == nil {
 				small := make([]*model.Run, n)
 				copy(small, ret)
 				ret = small
 				break
 			}
 
-			r := model.Run{}
-			buf := bytes.NewBuffer(rBin)
-			dec := gob.NewDecoder(buf)
-			if err := dec.Decode(&r); err != nil {
+			r, err := decRun(rBin)
+			if err != nil {
 				return err
 			}
 
-			ret[n] = &r
+			ret[n] = r
 			n++
 		}
 
@@ -155,23 +160,24 @@ func (a *Adapter) Runs(tID model.TaskID, before model.RunID, count int) ([]*mode
 	return ret, err
 }
 
+// Run returns a pointer to a mode.Run for the task with the given id.
 func (a *Adapter) Run(tID model.TaskID, rID model.RunID) (*model.Run, error) {
 	k, err := stob(string(rID))
 	if err != nil {
 		return nil, err
 	}
 
-	var ret model.Run
+	var ret *model.Run
 	err = a.db.View(func(tx *bolt.Tx) error {
 		bkt := taskRunBucket(tx, tID)
 		data := bkt.Get(k)
-		buf := bytes.NewBuffer(data)
-		dec := gob.NewDecoder(buf)
-		return dec.Decode(&ret)
+		ret, err = decRun(data)
+		return err
 	})
-	return &ret, err
+	return ret, err
 }
 
+// SaveLog persists a stdstreams.Log for a given task and run.
 func (a *Adapter) SaveLog(tID model.TaskID, rID model.RunID, l *stdstreams.Log) error {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
@@ -191,6 +197,7 @@ func (a *Adapter) SaveLog(tID model.TaskID, rID model.RunID, l *stdstreams.Log) 
 	})
 }
 
+// Log returns a pointer to a stdstreams.Log associated with the given task and run.
 func (a *Adapter) Log(tID model.TaskID, rID model.RunID) (*stdstreams.Log, error) {
 	key, err := stob(string(rID))
 	if err != nil {
@@ -214,6 +221,27 @@ func taskRunBucket(tx *bolt.Tx, tID model.TaskID) *bolt.Bucket {
 
 func taskLogBucket(tx *bolt.Tx, tID model.TaskID) *bolt.Bucket {
 	return tx.Bucket([]byte("Logs")).Bucket([]byte(tID))
+}
+
+func encRun(r *model.Run) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	if err := enc.Encode(r); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func decRun(b []byte) (*model.Run, error) {
+	r := model.Run{}
+	buf := bytes.NewBuffer(b)
+	dec := gob.NewDecoder(buf)
+	if err := dec.Decode(&r); err != nil {
+		return nil, err
+	}
+
+	return &r, nil
 }
 
 func itos(i uint64) string {

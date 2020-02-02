@@ -1,3 +1,4 @@
+// Package stdstreams implements logging of stdout and stderr.
 package stdstreams
 
 import (
@@ -9,17 +10,20 @@ import (
 	"time"
 )
 
+// Constants representing the types of streams.
 const (
 	Out = 1
 	Err = 2
 )
 
+// A Line represents a line written to a standard stream.
 type Line struct {
 	Stream int
 	Time   time.Time
 	Text   string
 }
 
+// A Log collects output streams.
 type Log struct {
 	lines []Line
 	mutex sync.Mutex
@@ -27,6 +31,7 @@ type Log struct {
 	errW  *bufferedLineWriter
 }
 
+// NewLog creates a new log.
 func NewLog() *Log {
 	l := &Log{
 		make([]Line, 0),
@@ -41,10 +46,12 @@ func NewLog() *Log {
 	return l
 }
 
+// Stdout returns an io.Writer for collecting lines written to stdout.
 func (l *Log) Stdout() io.Writer {
 	return l.outW
 }
 
+// Stderr returns an io.Writer for collection lines written to stderr.
 func (l *Log) Stderr() io.Writer {
 	return l.errW
 }
@@ -61,19 +68,24 @@ func (l *Log) writeLine(stream int, text string) {
 	l.lines = append(l.lines, Line{stream, time.Now(), text})
 }
 
+// Lines returns all lines written to the Log.
 func (l *Log) Lines() []Line {
 	return l.lines
 }
 
+// Flush forces Stdout and Stderr writer to write incomplete lines to the Log.
 func (l *Log) Flush() {
 	l.errW.Flush()
 	l.outW.Flush()
 }
 
+// JSON returns a JSON representation of the lines contained in the Log.
+// A number of lines might be skipped. Useful for polling new lines.
 func (l *Log) JSON(skip int) ([]byte, error) {
 	return json.Marshal(l.lines[skip:])
 }
 
+// MarshalBinary returns a binary representation of the Log.
 func (l *Log) MarshalBinary() ([]byte, error) {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
@@ -84,6 +96,7 @@ func (l *Log) MarshalBinary() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// UnmarshalBinary initializes the Log from the given binary representation.
 func (l *Log) UnmarshalBinary(data []byte) error {
 	r := bytes.NewReader(data)
 	dec := gob.NewDecoder(r)

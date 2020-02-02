@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	project, err := config.ReadConfig("config.json")
+	project, err := config.Read("config.json")
 	if err != nil {
 		log.Fatalf("Error reading config: %v", err)
 	}
