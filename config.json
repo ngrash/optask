@@ -8,6 +8,11 @@
 			"Cmd": "whoami"
 		},
 		{
+			"ID": "fail",
+			"Name": "Fail Task",
+			"Cmd": "false"
+		},
+		{
 			"ID": "ls",
 			"Name": "ls -lh $(pwd)",
 			"Cmd": "ls",
