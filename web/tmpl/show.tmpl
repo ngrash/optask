@@ -1,0 +1,78 @@
+{{define "title"}}{{.Name}}{{end}}
+
+{{define "content"}}
+  <nav>
+    <a href="/">{{.Title}}</a> 
+    &gt; 
+    <a href="/history?t={{.TaskID}}">{{.Name}}</a>
+    &gt; 
+    Run {{.ID}}
+  </nav>
+  <article>
+    <div id="status">
+      {{template "status" .}}
+    </div>
+    {{template "stdstreams" .}}
+  </article>
+{{end}}
+
+{{define "status"}}
+  <table>
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>Started</th>
+        <th>Completed</th>
+        <th>Exit code</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          {{if .Running}}
+            running
+          {{else}}
+            {{template "runstatus-brief" .}}
+          {{end}}
+        </td>
+        <td>{{.Started.Format "2006-01-02 15:04:05"}}</td>
+        <td>
+          {{if .Running}}
+            <i>unknown</i>
+          {{else}}
+            {{.Completed.Format "2006-01-02 15:04:05"}}
+          {{end}}
+        </td>
+        <td>
+          {{if .Running}}
+            <i>unknown</i>
+          {{else}}
+            {{.ExitCode}}
+          {{end}}
+        </td>
+      </tr>
+    </tbody>
+  </table>
+{{end}}
+
+{{define "stdstreams"}}
+  <article class="stdstreams-container">
+    <kbd>$ {{.CmdLine}}</kbd>
+
+    {{if or .Lines .Running}}
+      <div id="stdstreams" data-tid="{{.TaskID}}" data-rid="{{.ID}}" data-skip="{{.Skip}}">
+        {{range .Lines}}
+          <div class="stdstream-{{.Stream}}-line">{{.Text}}</div>
+        {{end}}
+      </div>
+
+      {{if .Running}}
+        <span id="running-indicator">...</span>
+      {{end}}
+    {{end}}
+  </article>
+
+  {{if .Running}}
+    <script src="/static/refresh.js"></script>
+  {{end}}
+{{end}}

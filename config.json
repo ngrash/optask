@@ -3,6 +3,11 @@
 	"Name": "Example",
 	"Tasks": [
 		{
+			"ID": "lsblk",
+			"Name": "List Block Devices",
+			"Cmd": "lsblk"
+		},
+		{
 			"ID": "whoami",
 			"Name": "Who am I?",
 			"Cmd": "whoami"
@@ -13,10 +18,23 @@
 			"Cmd": "false"
 		},
 		{
+			"ID": "stderr",
+			"Name": "Write to stderr",
+			"Cmd": "/bin/sh",
+			"Args": [ "-c", ">&2 echo error" ]
+
+		},
+		{
 			"ID": "ls",
 			"Name": "ls -lh $(pwd)",
 			"Cmd": "ls",
 			"Args": [ "-l", "-h" ]
+		},
+		{
+			"ID": "tree",
+			"Name": "tree",
+			"Cmd": "tree",
+			"Args": [ "/var" ]
 		},
 		{
 			"ID": "cpuinfo",
@@ -26,7 +44,7 @@
 		},
 		{
 			"ID": "sleep-n-echo",
-			"Name": "sleep 2 && echo Hello, web!",
+			"Name": "sleep && echo",
 			"Cmd": "/bin/sh",
 			"Args": [ "-c", "sleep 2 && echo Hello, web! && sleep 2 && echo Hello, world!" ]
 		}

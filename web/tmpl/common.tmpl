@@ -1,0 +1,18 @@
+{{define "runstatus"}}
+  {{template "runstatus-brief" .}}
+  <a href="show?t={{.TaskID}}&r={{.ID}}">{{.Duration.String}} ago</a>
+{{end}}
+
+{{define "runstatus-brief"}}
+  {{if .Running}}
+    started
+  {{else}}
+    {{$status := "unknown"}}
+    {{if eq .ExitCode 0}}
+      {{$status = "succeeded"}}
+    {{else}}
+      {{$status = "failed"}}
+    {{end}}
+    <span class="status-{{$status}}">{{$status}}</span>
+  {{end}}
+{{end}}

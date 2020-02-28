@@ -55,8 +55,13 @@ func (s *Service) Task(tID model.TaskID) (model.Task, error) {
 	return model.Task{}, errors.New("No task with ID " + string(tID))
 }
 
-// Run starts the execution of a task returning the ID of the new run.
-func (s *Service) Run(tID model.TaskID) (model.RunID, error) {
+// Run returns a model.Run for the given ID.
+func (s *Service) Run(tID model.TaskID, rID model.RunID) (*model.Run, error) {
+	return s.db.Run(tID, rID)
+}
+
+// Exec starts the execution of a task returning the ID of the new run.
+func (s *Service) Exec(tID model.TaskID) (model.RunID, error) {
 	task, err := s.Task(tID)
 	if err != nil {
 		return "", err

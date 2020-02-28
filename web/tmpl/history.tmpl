@@ -1,0 +1,20 @@
+{{define "title"}}
+  {{.Title}}
+{{end}}
+
+{{define "content"}}
+  <nav>
+    <a href="/">{{.Title}}</a> 
+    &gt; 
+    {{.Task.Name}}
+  </nav>
+  {{range .Runs}}
+    {{template "run" .}}
+  {{end}}
+{{end}}
+
+{{define "run"}}
+  <article>
+    Run {{.ID}} {{template "runstatus" .}}
+  </article>
+{{end}}

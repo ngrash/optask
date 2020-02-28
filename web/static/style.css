@@ -1,0 +1,68 @@
+/* article tags are used for main elements like runs and tasks */
+article { 
+	border: 1px solid black; 
+	margin-bottom: 1rem; 
+	padding: 1rem;
+}
+
+/* nav is the breadcrumb navigation */
+nav {
+	font-size: 2rem;
+	margin-bottom: 2rem;
+	margin-top: 2rem;
+}
+
+form[action=exec] { 
+	display: inline; /* display following content on the same line as the exec button */
+}
+
+input[type=submit] { 
+	font-size: 1rem;
+}
+
+span { 
+	display: inline-block; /* wrap whole spans instead of breaking them apart */
+}
+
+table {
+	table-layout: fixed; /* prevent table layout from changing when status is refreshed dynamically */
+	width: 100%; /* fill whole container */
+}
+
+th {
+	text-align: left;
+}
+
+.stdstreams-container {
+	background-color: black;
+	color: white;
+	font-family: monospace;
+	font-size: 1rem;
+	margin-bottom: 0;
+	margin-top: 1rem;
+}
+
+/* .stdstreams-2-line is a line of text written to stderr */
+.stdstream-2-line {
+	color: crimson
+}
+
+.status-succeeded { 
+	color: seagreen 
+}
+
+.status-failed { 
+	color: crimson 
+}
+
+.credits {
+	color: dimgrey;
+	display: block;
+	margin-bottom: 1rem;
+	margin-top: 2rem;
+	text-align: center;
+}
+
+@media (min-width: 980px) {
+	body { max-width: 980px; margin: auto }
+}

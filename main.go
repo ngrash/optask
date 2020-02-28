@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net/http"
 
 	"nicograshoff.de/x/optask/internal/config"
 	"nicograshoff.de/x/optask/internal/runner"
@@ -16,6 +17,10 @@ func main() {
 
 	runner := runner.NewService(project)
 
-	c := web.Context{Project: project, Runner: runner}
-	web.ListenAndServe(&c, ":8080")
+	s, err := web.NewServer(project, runner)
+	if err != nil {
+		log.Fatalf("initializing http server: %v", err)
+	}
+
+	log.Fatal(http.ListenAndServe(":8080", s))
 }

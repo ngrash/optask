@@ -1,0 +1,33 @@
+{{define "title"}}Tasks{{end}}
+
+{{define "content"}}
+  <nav>{{.Title}}</nav>
+  {{range .Tasks}}
+    {{template "task" .}}
+  {{end}}
+{{end}}
+
+{{define "task"}}
+  <article>
+    {{template "exec" .}}
+    {{template "lastrun" .LastRun}}
+  </article>
+{{end}}
+
+{{define "exec"}}
+  <form action="exec" method="post">
+    <input type="hidden" name="t" value="{{.ID}}">
+    <input type="submit" value="{{.Name}}">
+  </form>
+{{end}}
+
+{{define "lastrun"}}
+  <span class="runstatus">
+    {{if .Exists}}
+      {{template "runstatus" .}}
+      (<a href="history?t={{ .TaskID }}">history</a>)
+    {{else}}
+      never ran
+    {{end}}
+  </span>
+{{end}}
