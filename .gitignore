@@ -1,4 +1,4 @@
 optask
 *.swp
 *.swo
-*.db
+data/*.db
