@@ -2,11 +2,12 @@ package runner
 
 import (
 	"errors"
+	"path/filepath"
 	"time"
 
-	"nicograshoff.de/x/optask/internal/db"
-	"nicograshoff.de/x/optask/internal/model"
-	"nicograshoff.de/x/optask/internal/stdstreams"
+	"github.com/ngrash/optask/internal/db"
+	"github.com/ngrash/optask/internal/model"
+	"github.com/ngrash/optask/internal/stdstreams"
 )
 
 // Service is the domain context for running tasks.
@@ -26,7 +27,9 @@ type runData struct {
 // A database will be opened or created and a runner will be spawned in the background.
 func NewService(p *model.Project) *Service {
 	r := newRunner()
-	db, err := db.NewAdapter(p.ID+".db", p)
+
+	path := filepath.Join("data", p.ID+".db")
+	db, err := db.NewAdapter(path, p)
 	if err != nil {
 		panic(err)
 	}

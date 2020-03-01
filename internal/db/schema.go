@@ -2,7 +2,7 @@ package db
 
 import (
 	"github.com/boltdb/bolt"
-	"nicograshoff.de/x/optask/internal/model"
+	"github.com/ngrash/optask/internal/model"
 )
 
 func updateSchema(db *bolt.DB, p *model.Project) error {

@@ -4,9 +4,9 @@ import (
 	"log"
 	"net/http"
 
-	"nicograshoff.de/x/optask/internal/config"
-	"nicograshoff.de/x/optask/internal/runner"
-	"nicograshoff.de/x/optask/internal/web"
+	"github.com/ngrash/optask/internal/config"
+	"github.com/ngrash/optask/internal/runner"
+	"github.com/ngrash/optask/internal/web"
 )
 
 func main() {

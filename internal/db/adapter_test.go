@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	"nicograshoff.de/x/optask/internal/model"
-	"nicograshoff.de/x/optask/internal/stdstreams"
+	"github.com/ngrash/optask/internal/model"
+	"github.com/ngrash/optask/internal/stdstreams"
 )
 
 var project = &model.Project{

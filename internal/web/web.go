@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"nicograshoff.de/x/optask/internal/model"
-	"nicograshoff.de/x/optask/internal/runner"
-	"nicograshoff.de/x/optask/internal/stdstreams"
+	"github.com/ngrash/optask/internal/model"
+	"github.com/ngrash/optask/internal/runner"
+	"github.com/ngrash/optask/internal/stdstreams"
 )
 
 const TemplatePath = "web/tmpl"

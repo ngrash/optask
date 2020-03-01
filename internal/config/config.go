@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	"nicograshoff.de/x/optask/internal/model"
+	"github.com/ngrash/optask/internal/model"
 )
 
 // Read reads a project from the given file path and validates it.

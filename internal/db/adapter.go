@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
-	"nicograshoff.de/x/optask/internal/model"
-	"nicograshoff.de/x/optask/internal/stdstreams"
+	"github.com/ngrash/optask/internal/model"
+	"github.com/ngrash/optask/internal/stdstreams"
 )
 
 const openTimeout = 1 * time.Second // timeout for bolt.Open

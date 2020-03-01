@@ -3,7 +3,7 @@ package runner
 import (
 	"os/exec"
 
-	"nicograshoff.de/x/optask/internal/stdstreams"
+	"github.com/ngrash/optask/internal/stdstreams"
 )
 
 type runner struct {
